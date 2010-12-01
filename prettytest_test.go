@@ -31,75 +31,14 @@ import (
 	"io/ioutil"
 )
 
-func testAssertTrue(assert *T) {
-	assert.True(true)
-	if assert.Failed() {
-		assert.T.Errorf("True(true) should not fail\n")
-	}
-
-	assert.True(false)
-	if !assert.Failed() {
-		assert.T.Errorf("True(false) should fail\n")
-	}
-}
-
-func testAssertFalse(assert *T) {
-	assert.False(false)
-	if assert.Failed() {
-		assert.T.Errorf("False(false) should not fail\n")
-	}
-
-	assert.False(true)
-	if !assert.Failed() {
-		assert.T.Errorf("False(true) should fail\n")
-	}
-}
-
-func testAssertEqual(assert *T) {
-	assert.Equal("foo", "foo")
-	if assert.Failed() {
-		assert.T.Errorf("Equal(foo, foo) should not fail")
-	}
-
-	assert.Equal("foo", "bar")
-	if !assert.Failed() {
-		assert.T.Errorf("Equal(foo, bar) should fail")
-	}
-}
-
-func testLastAssertionStatus(assert *T) {
-	assert.Equal("foo", "bar")
-	assert.Equal("foo", "foo")
-
-	if assert.Failed() {
-		assert.T.Errorf("Assertion last status should not be STATUS_FAIL")
-	}
-
-	if !assert.TestFailed() {
-		assert.T.Errorf("Test status should be STATUS_FAIL")
-	}
-
-}
-
-func TestBaseAssertions(t *testing.T) {
-	DryRun(
-		t,
-		testAssertTrue,
-		testAssertFalse,
-		testAssertEqual,
-		testLastAssertionStatus,
-	)
-}
-
-func testPending(assert *T) { 
-	assert.Pending()
-}
-
-func testPass(assert *T) { 
-	assert.True(true)
-}
+type testSuite struct { Suite }
+type beforeAfterSuite struct { Suite }
+type bddFormatterSuite struct { Suite }
 
 var (
+	basicAssertions testSuite
+	beforeAfter beforeAfterSuite
+	bddFormatter bddFormatterSuite
 	state int = 0
 	beforeState = 0
 	afterState = 0
@@ -107,102 +46,72 @@ var (
 	afterAllState int = 0
 )
 
-func before(assert *T) {
+func (suite *testSuite) testTrueFalse() {
+	suite.True(true)
+	suite.False(false)
+}
+
+func (suite *testSuite) testEqualNotEqual() {
+	suite.Equal("foo", "foo")
+	suite.NotEqual("foo", "bar")
+}
+
+func (suite *testSuite) testNil() { 
+	suite.Nil(nil)
+}
+
+func (suite *testSuite) testNotNil() {
+	suite.NotNil([]byte{1,2,3})
+}
+
+func (suite *testSuite) testPath() {
+	ioutil.WriteFile("testfile", nil, 0600)
+	suite.Path("testfile")
+	// suite.Path("foo")
+	// suite.True(suite.Failed())
+}
+
+func (suite *testSuite) testPending() { 
+	suite.Pending()
+}
+
+func (suite *testSuite) after() {
+	os.Remove("testfile")
+}
+
+func (suite *beforeAfterSuite) before() {
 	state += 2
 	beforeState++
 }
 
-func after(assert *T) {
+func (suite *beforeAfterSuite) after() {
 	state--
 	afterState--
 }
 
-func beforeAll(assert *T) {
+func (suite *beforeAfterSuite) beforeAll() {
 	state = 0
 	beforeAllState++
 }
 
-func afterAll(assert *T) {
+func (suite *beforeAfterSuite) afterAll() {
 	state = 0
 	afterAllState--
 }
 
-func testSetup_1(assert *T) {
-	assert.Equal(2, state)
+func (suite *beforeAfterSuite) testSetup_1() {
+	suite.Equal(2, state)
 }
 
-func testSetup_2(assert *T) {
-	assert.Equal(3, state)
+func (suite *beforeAfterSuite) testSetup_2() {
+	suite.Equal(3, state)
 }
 
-func testBeforeAfterAll_1(assert *T) {
-	assert.False(-1 == afterAllState)
-	assert.Equal(1, beforeAllState)
-}
-
-func testBeforeAfterAll_2(assert *T) {
-	assert.False(-1 == afterAllState)
-	assert.Equal(1, beforeAllState)
-}
-
-func beforeCustom(assert *T) {
-	state += 2
-	beforeState++
-}
-
-func afterCustom(assert *T) {
-	state--
-	afterState--
-}
-
-func beforeAllCustom(assert *T) {
-	state = 0
-	beforeAllState++
-}
-
-func afterAllCustom(assert *T) {
-	state = 0
-	afterAllState--
-}
-
-func TestRunner(t *testing.T) {
+func TestBasicAssertions(t *testing.T) {
 	Run(
 		t,
-		testPending,
-		testPass,
-	)
-}
-
-func TestSetupTeardown(t *testing.T) {
-	Run(
-		t,
-		before,
-		after,
-		testSetup_1,
-		testSetup_2,
-	)
-}
-
-func TestMisplacedSetupTeardown(t *testing.T) {
-	state = 0
-	Run(
-		t,
-		testSetup_1,
-		before,
-		testSetup_2,
-		after,
-	)	
-}
-
-func TestSetupAllTeardownAll(t *testing.T) {
-	beforeAllState = 0
-	afterAllState = 0
-	Run(
-		t,
-		beforeAll,
-		afterAll,
-		testBeforeAfterAll_1,
-		testBeforeAfterAll_2,		
+		&basicAssertions,
+		&beforeAfter,
 	)
 	if beforeAllState != 1 {
 		t.Errorf("beforeAllState should be 1 after all tests but was %d\n", beforeAllState)
@@ -212,83 +121,18 @@ func TestSetupAllTeardownAll(t *testing.T) {
 	}
 }
 
-func TestBeforeAfterWithCustomNames(t *testing.T) {
-	state = 10
-	beforeAllState = 0
-	afterAllState = 0
-	beforeState = 0
-	afterState = 0
-	Run(
-		t,
-		beforeAllCustom,
-		afterAllCustom,
-		beforeCustom,
-		afterCustom,
-		testSetup_1,
-		testSetup_2,
-	)
-	if state != 0 {
-		t.Errorf("state should be 0 after all tests\n")
-	}
-	if beforeState != 2 {
-		t.Errorf("beforeState should be 2 after all tests but was %d\n", beforeState)
-	}
-	if afterState != -2 {
-		t.Errorf("afterState should be -2 after all tests but was %d\n", afterState)
-	}
-	if beforeAllState != 1 {
-		t.Errorf("beforeAllState should be 1 after all tests but was %d\n", beforeAllState)
-	}
-	if afterAllState != -1 {
-		t.Errorf("afterAllState should be -1 after all tests but was\n", afterAllState)
-	}
+func (suite *bddFormatterSuite) should_use_green_on_passing_examples() {
+	suite.True(true)
 }
 
-func afterTestPath(assert *T) {
-	os.Remove("testfile")
-}
-
-func testPath(assert *T) {
-	ioutil.WriteFile("testfile", nil, 0600)
-	assert.Path("testfile")
-	
-	assert.Dry = true
-	assert.Path("foo")
-	assert.True(assert.Failed())
-}
-
-func TestPath(t *testing.T) {
-	Run(
-		t,
-		afterTestPath,
-		testPath,
-	)
-}
-
-func testNil(assert *T) { assert.Nil(nil) }
-func testNotNil(assert *T) { assert.NotNil([]byte{1,2,3}) }
-
-func TestNilNotNil(t *testing.T) {
-	Run(
-		t,
-		testNil,
-		testNotNil,
-	)
-}
-
-func should_use_green_on_passing_examples(assert *T) {
-	assert.True(true)
-}
-
-func should_use_yellow_on_pending_examples(assert *T) {
-	assert.Pending()
+func (suite *bddFormatterSuite) should_use_yellow_on_pending_examples() {
+	suite.Pending()
 }
 
 func TestBDDStyleSpecs(t *testing.T) {
-	Describe(
+	RunWithFormatter(
 		t,
-		"PrettyTest",
-		should_use_green_on_passing_examples,
-		should_use_yellow_on_pending_examples,
+		&BDDFormatter{Description: "BDD Formatter"},
+		&bddFormatter,
 	)
 }

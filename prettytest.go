@@ -71,7 +71,6 @@ var (
 	labelFAIL    = red("FAIL")
 	labelPASS    = green("OK")
 	labelPENDING = yellow("PENDING")
-	labelDRY     = yellow("DRY")
 )
 
 type callerInfo struct {
@@ -79,61 +78,81 @@ type callerInfo struct {
 	line     int
 }
 
-type T struct {
-	T                  *testing.T
-	Status, LastStatus byte
-	Dry                bool
-
-	callerInfo *callerInfo
-}
-
 func newCallerInfo(skip int) *callerInfo {
 	pc, fn, line, ok := runtime.Caller(skip)
 	if !ok {
 		panic("An error occured while retrieving caller info!")
 	}
-	callerName := runtime.FuncForPC(pc).Name()
+	callerName := strings.Split(runtime.FuncForPC(pc).Name(), ".", -1)[1]
 	return &callerInfo{callerName, fn, line}
+}
+
+type TCatcher interface {
+	SetT(t *testing.T)	
+	GetLastStatus() byte
+	GetStatus() byte
+	SetStatus(status byte)
+	GetInfo() *suiteInfo
+	Reset()
+}
+
+type suiteInfo struct {
+	assertions int
+	callerName string
+}
+
+type Suite struct {
+	T *testing.T
+	Status, LastStatus byte
+	callerInfo *callerInfo
+	info map[string]*suiteInfo
 }
 
 // Formatters
 type Formatter interface {
-	PrintStatus(status byte, callerInfo *callerInfo)
-	PrintDry(callerInfo *callerInfo)
+	PrintSuiteName(name string)
+	PrintStatus(status byte, info *suiteInfo)
+	PrintFinalReport(passed, failed, pending int)
+	AllowedMethodsPattern() string
 }
 
 type TDDFormatter struct{}
 
-func (formatter *TDDFormatter) PrintStatus(status byte, callerInfo *callerInfo) {
+func (formatter *TDDFormatter) PrintSuiteName(name string) {
+	fmt.Printf("\n%s:\n", name)
+}
+
+func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	switch status {
 	case STATUS_FAIL:
-		fmt.Printf(formatTag+"%s\n", labelFAIL, callerInfo.name)
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelFAIL, strings.Split(info.callerName, "·", -1)[1], info.assertions)
 	case STATUS_PASS:
-		fmt.Printf(formatTag+"%s\n", labelPASS, callerInfo.name)
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPASS, strings.Split(info.callerName, "·", -1)[1], info.assertions)
 	case STATUS_PENDING:
-		fmt.Printf(formatTag+"%s\n", labelPENDING, callerInfo.name)
+		fmt.Printf(formatTag+"%s\n", labelPENDING, strings.Split(info.callerName, "·", -1)[1])
 
 	}
 }
 
-func (formatter *TDDFormatter) PrintDry(callerInfo *callerInfo) {
-	fmt.Printf(formatTag+"%s\n", labelDRY, callerInfo.name)
+func (formatter *TDDFormatter) PrintFinalReport(passed, failed, pending int) {
+	total := passed + failed + pending
+	fmt.Printf("\n%d tests, %d passed, %d failed, %d pending\n", total, passed, failed, pending)
 }
 
-type BDDFormatter struct{}
+func (formatter *TDDFormatter) AllowedMethodsPattern() string {
+	return "^test.*"
+}
 
-func (formatter *BDDFormatter) PrintStatus(status byte, callerInfo *callerInfo) {
-	var shouldText string
+type BDDFormatter struct {
+	Description string
+}
 
-	s := strings.Split(callerInfo.name, ".", -1)
-	callerName := s[1]
-	splittedByUnderscores := strings.Split(callerName, "_", -1)
+func (formatter *BDDFormatter) PrintSuiteName(name string) {
+	fmt.Printf("\n%s:\n", formatter.Description)
+}
 
-	for _, v := range splittedByUnderscores {
-		shouldText += v + " "
-	}
-
-	shouldText = strings.TrimSpace(shouldText)
+func (formatter *BDDFormatter) PrintStatus(status byte, info *suiteInfo) {
+	shouldText := formatter.splitString(info.callerName, "·")
 
 	switch status {
 	case STATUS_FAIL:
@@ -145,185 +164,226 @@ func (formatter *BDDFormatter) PrintStatus(status byte, callerInfo *callerInfo) 
 	}
 }
 
-func (formatter *BDDFormatter) PrintDry(callerInfo *callerInfo) {
-	fmt.Printf(formatTag+"%s\n", labelDRY, callerInfo.name)
+func (formatter *BDDFormatter) PrintFinalReport(passed, failed, pending int) {
+	total := passed + failed + pending
+	fmt.Printf("\n%d examples, %d passed, %d failed, %d pending\n", total, passed, failed, pending)
 }
 
-func (assertion *T) fail(exp, act interface{}, info *callerInfo) {
-	if !assertion.Dry {
-		assertion.T.Errorf("Expected %s but got %s -- %s:%d\n", exp, act, info.fn, info.line)
+func (formatter *BDDFormatter) AllowedMethodsPattern() string {
+	return "^should_.*"
+}
+
+func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
+	s := strings.Split(text, sep, -1)
+
+	if len(s) < 2 {
+		panic("Can't use BDD formatter!")
 	}
-	assertion.Status, assertion.LastStatus = STATUS_FAIL, STATUS_FAIL
-}
 
-func (assertion *T) failWithCustomMsg(msg string, info *callerInfo) {
-	if !assertion.Dry {
-		assertion.T.Errorf("%s -- %s:%d\n", msg, info.fn, info.line)
+	stringWithUnderscores := s[1]
+	splittedByUnderscores := strings.Split(stringWithUnderscores, "_", -1)
+
+	for _, v := range splittedByUnderscores {
+		result += v + " "
 	}
-	assertion.Status, assertion.LastStatus = STATUS_FAIL, STATUS_FAIL
+	return strings.TrimSpace(result)
 }
 
-func (assertion *T) setup() {
-	assertion.LastStatus = STATUS_PASS
-	assertion.callerInfo = newCallerInfo(3)
+func (s *Suite) SetT(t *testing.T) { s.T = t }
+func (s *Suite)	GetLastStatus() byte { return s.LastStatus }
+func (s *Suite)	GetStatus() byte { return s.Status }
+func (s *Suite)	SetStatus(status byte) { s.Status = status }
+func (s *Suite)	GetCallerInfo() *callerInfo { return s.callerInfo }
+func (s *Suite)	GetInfo() *suiteInfo { return s.info[s.callerInfo.name] }
+
+func (s *Suite)	Reset() { 
+	s.info = make(map[string]*suiteInfo)
 }
 
-// Assert that the expected value equals the actual value. Return true
-// on success.
-func (assertion *T) Equal(exp, act interface{}) {
-	assertion.setup()
+func (s *Suite) fail(exp, act interface{}, info *callerInfo) {
+	s.T.Errorf("Expected %s but got %s -- %s:%d\n", exp, act, info.fn, info.line)
+	s.Status, s.LastStatus = STATUS_FAIL, STATUS_FAIL
+}
+
+func (s *Suite) failWithCustomMsg(msg string, info *callerInfo) {
+	s.T.Errorf("%s -- %s:%d\n", msg, info.fn, info.line)
+	s.Status, s.LastStatus = STATUS_FAIL, STATUS_FAIL
+}
+
+func (s *Suite) setup() {
+	s.LastStatus = STATUS_PASS
+	s.callerInfo = newCallerInfo(3)
+	if _, present := s.info[s.callerInfo.name]; !present {
+		s.info[s.callerInfo.name] = new(suiteInfo)
+		
+	}
+	s.info[s.callerInfo.name].callerName = s.callerInfo.name
+	s.info[s.callerInfo.name].assertions++
+}
+
+// Assert that the expected value equals the actual value.
+func (s *Suite) Equal(exp, act interface{}) {
+	s.setup()
 	if exp != act {
-		assertion.fail(exp, act, assertion.callerInfo)
+		s.fail(exp, act, s.callerInfo)
+	}
+}
+
+// Assert that the expected value is not equal to the actual
+// value.
+func (s *Suite) NotEqual(exp, act interface{}) {
+	s.setup()
+	if exp == act {
+		s.fail(exp, act, s.callerInfo)
 	}
 }
 
 // Assert that the value is true.
-func (assertion *T) True(value bool) {
-	assertion.setup()
+func (s *Suite) True(value bool) {
+	s.setup()
 	if !value {
-		assertion.fail("true", "false", assertion.callerInfo)
+		s.fail("true", "false", s.callerInfo)
 	}
 }
 
 // Assert that the value is false.
-func (assertion *T) False(value bool) {
-	assertion.setup()
+func (s *Suite) False(value bool) {
+	s.setup()
 	if value {
-		assertion.fail("false", "true", assertion.callerInfo)
+		s.fail("false", "true", s.callerInfo)
 	}
 }
 
 // Assert that the given path exists.
-func (assertion *T) Path(path string) {
-	assertion.setup()
+func (s *Suite) Path(path string) {
+	s.setup()
 	if _, err := os.Stat(path); err != nil {
-		assertion.failWithCustomMsg(fmt.Sprintf("Path %s doesn't exist", path), assertion.callerInfo)
+		s.failWithCustomMsg(fmt.Sprintf("Path %s doesn't exist", path), s.callerInfo)
 	}
 }
 
 // Assert that the value is nil.
-func (assertion *T) Nil(value interface{}) {
-	assertion.setup()
+func (s *Suite) Nil(value interface{}) {
+	s.setup()
 	if value != nil {
-		assertion.failWithCustomMsg(fmt.Sprintf("Expected nil but got %s", value), assertion.callerInfo)
+		s.failWithCustomMsg(fmt.Sprintf("Expected nil but got %s", value), s.callerInfo)
 	}
 }
 
 // Assert that the value is not nil.
-func (assertion *T) NotNil(value interface{}) {
-	assertion.setup()
+func (s *Suite) NotNil(value interface{}) {
+	s.setup()
 	if value == nil {
-		assertion.failWithCustomMsg(fmt.Sprintf("Expected not nil value but got %s", value), assertion.callerInfo)
+		s.failWithCustomMsg(fmt.Sprintf("Expected not nil value but got %s", value), s.callerInfo)
 	}
 }
 
 // Mark the test function as pending.
-func (assertion *T) Pending() {
-	assertion.setup()
-	assertion.Status = STATUS_PENDING
+func (s *Suite) Pending() {
+	s.setup()
+	s.Status = STATUS_PENDING
 }
 
 // Check if the last assertion has failed.
-func (assertion *T) Failed() bool {
-	return assertion.LastStatus == STATUS_FAIL
+func (s *Suite) Failed() bool {
+	return s.LastStatus == STATUS_FAIL
 }
 
 // Check if the test function has failed.
-func (assertion *T) TestFailed() bool {
-	return assertion.Status == STATUS_FAIL
+func (s *Suite) TestFailed() bool {
+	return s.Status == STATUS_FAIL
 }
 
-func getFuncId(pattern string, excludeId int, tests ...func(*T)) (id int) {
-	id = -1
+func Run(t *testing.T, suites ...TCatcher) {
+	run(t, new(TDDFormatter), suites...)
+}
 
-	for i, test := range tests {
-		funcValue := reflect.NewValue(test)
+func RunWithFormatter(t *testing.T, formatter Formatter, suites ...TCatcher) {
+	run(t, formatter, suites...)
+}
 
-		switch f := funcValue.(type) {
-		case *reflect.FuncValue:
-			funcName := runtime.FuncForPC(f.Get()).Name()
-			matched, err := regexp.MatchString(pattern, funcName)
-			if err == nil && matched && i != excludeId {
-				id = i
+// Run tests. Use default formatter.
+func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
+	var (
+		beforeAllFound, afterAllFound bool
+		beforeAll, afterAll, before, after *reflect.FuncValue
+		totalPassed, totalFailed, totalPending int
+	)
+
+	for _, s := range suites {
+		beforeAll, afterAll, before, after = nil, nil, nil, nil
+		s.SetT(t)
+		s.Reset()
+
+		iType := reflect.Typeof(s)
+
+		formatter.PrintSuiteName(iType.String())
+
+		// search for before and after methods
+		for i := 0; i < iType.NumMethod(); i++ {
+			method := iType.Method(i)
+			if ok, _ := regexp.MatchString("^beforeAll", method.Name); ok {
+				if !beforeAllFound {
+					beforeAll = method.Func
+					beforeAllFound = true
+					continue
+				}
+			}
+			if ok, _ := regexp.MatchString("^afterAll", method.Name); ok {
+				if !afterAllFound {
+					afterAll = method.Func
+					afterAllFound = true
+					continue
+				}
+			}
+			if ok, _ := regexp.MatchString("^before", method.Name); ok {
+					before = method.Func
+			}
+			if ok, _ := regexp.MatchString("^after", method.Name); ok {
+					after = method.Func
 			}
 		}
-	}
 
-	return
-}
-
-func printCallerName() {
-	pc, _, _, _ := runtime.Caller(2)
-	callerName := runtime.FuncForPC(pc).Name()
-	fmt.Printf("\n%s:\n", callerName)
-}
-
-func run(t *testing.T, format Formatter, tests ...func(*T)) {
-	beforeAllFuncId := getFuncId(".*\\.beforeAll.*$", -1, tests...)
-	afterAllFuncId := getFuncId(".*\\.afterAll.*$", -1, tests...)
-	setupFuncId := getFuncId(".*\\.before.*$", beforeAllFuncId, tests...)
-	teardownFuncId := getFuncId(".*\\.after.*$", afterAllFuncId, tests...)
-
-	if beforeAllFuncId >= 0 {
-		assertions := &T{t, STATUS_PASS, STATUS_PASS, false, &callerInfo{"", "", 0}}
-		tests[beforeAllFuncId](assertions)
-	}
-
-	for i, test := range tests {
-
-		assertions := &T{t, STATUS_PASS, STATUS_PASS, false, &callerInfo{"", "", 0}}
-
-		if i == beforeAllFuncId {
-			continue
+		if beforeAll != nil {
+			beforeAll.Call([]reflect.Value{reflect.NewValue(s)})
 		}
 
-		if i == afterAllFuncId {
-			continue
+		for i := 0; i < iType.NumMethod(); i++ {
+			method := iType.Method(i)
+
+			if ok, _ := regexp.MatchString(formatter.AllowedMethodsPattern(), method.Name); ok {
+
+				s.SetStatus(STATUS_PASS)
+
+				if before != nil {
+					before.Call([]reflect.Value{reflect.NewValue(s)})
+				}
+
+				method.Func.Call([]reflect.Value{reflect.NewValue(s)})
+
+				if after != nil {
+					after.Call([]reflect.Value{reflect.NewValue(s)})
+				}
+				
+				switch s.GetStatus() {
+				case STATUS_PASS: 
+					totalPassed++
+				case STATUS_FAIL: 
+					totalFailed++
+				case STATUS_PENDING: 
+					totalPending++
+				}
+					
+				formatter.PrintStatus(s.GetStatus(), s.GetInfo())
+
+			}
+
 		}
 
-		if i == setupFuncId || i == teardownFuncId {
-			continue
-		}
-
-		if setupFuncId >= 0 {
-			tests[setupFuncId](assertions)
-		}
-
-		test(assertions)
-
-		if teardownFuncId >= 0 {
-			tests[teardownFuncId](assertions)
-		}
-
-		if !assertions.Dry {
-			format.PrintStatus(assertions.Status, assertions.callerInfo)
-		} else {
-			format.PrintDry(assertions.callerInfo)
+		if afterAll != nil {
+			afterAll.Call([]reflect.Value{reflect.NewValue(s)})
 		}
 	}
 
-	if afterAllFuncId >= 0 {
-		assertions := &T{t, STATUS_PASS, STATUS_PASS, false, &callerInfo{"", "", 0}}
-		tests[afterAllFuncId](assertions)
-	}
-}
-
-// Run tests.
-func Run(t *testing.T, tests ...func(*T)) {
-	printCallerName()
-	run(t, &TDDFormatter{}, tests...)
-}
-
-// Run tests but don't emit output and don't fail on failing
-// assertions.
-func DryRun(t *testing.T, tests ...func(*T)) {
-	for _, test := range tests {
-		test(&T{t, STATUS_PASS, STATUS_PASS, true, nil})
-	}
-}
-
-// Run tests in BDD style
-func Describe(t *testing.T, description string, tests ...func(*T)) {
-	fmt.Printf("\n%s\n", description)
-	run(t, &BDDFormatter{}, tests...)
+	formatter.PrintFinalReport(totalPassed, totalFailed, totalPending)
 }
