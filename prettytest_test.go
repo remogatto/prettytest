@@ -31,20 +31,11 @@ import (
 	"io/ioutil"
 )
 
+var state, beforeState, afterState, beforeAllState, afterAllState int
+
 type testSuite struct { Suite }
 type beforeAfterSuite struct { Suite }
 type bddFormatterSuite struct { Suite }
-
-var (
-	basicAssertions testSuite
-	beforeAfter beforeAfterSuite
-	bddFormatter bddFormatterSuite
-	state int = 0
-	beforeState = 0
-	afterState = 0
-	beforeAllState int = 0
-	afterAllState int = 0
-)
 
 func (suite *testSuite) testTrueFalse() {
 	suite.True(true)
@@ -107,11 +98,11 @@ func (suite *beforeAfterSuite) testSetup_2() {
 	suite.Equal(3, state)
 }
 
-func TestBasicAssertions(t *testing.T) {
+func TestPrettyTest(t *testing.T) {
 	Run(
 		t,
-		&basicAssertions,
-		&beforeAfter,
+		new(testSuite),
+		new(beforeAfterSuite),
 	)
 	if beforeAllState != 1 {
 		t.Errorf("beforeAllState should be 1 after all tests but was %d\n", beforeAllState)
@@ -133,6 +124,6 @@ func TestBDDStyleSpecs(t *testing.T) {
 	RunWithFormatter(
 		t,
 		&BDDFormatter{Description: "BDD Formatter"},
-		&bddFormatter,
+		new(bddFormatterSuite),
 	)
 }
