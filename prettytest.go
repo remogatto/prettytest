@@ -88,7 +88,7 @@ func newCallerInfo(skip int) *callerInfo {
 }
 
 type TCatcher interface {
-	SetT(t *testing.T)	
+	SetT(t *testing.T)
 	GetLastStatus() byte
 	GetStatus() byte
 	SetStatus(status byte)
@@ -102,10 +102,10 @@ type suiteInfo struct {
 }
 
 type Suite struct {
-	T *testing.T
+	T                  *testing.T
 	Status, LastStatus byte
-	callerInfo *callerInfo
-	info map[string]*suiteInfo
+	callerInfo         *callerInfo
+	info               map[string]*suiteInfo
 }
 
 // Formatters
@@ -189,14 +189,14 @@ func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
 	return strings.TrimSpace(result)
 }
 
-func (s *Suite) SetT(t *testing.T) { s.T = t }
-func (s *Suite)	GetLastStatus() byte { return s.LastStatus }
-func (s *Suite)	GetStatus() byte { return s.Status }
-func (s *Suite)	SetStatus(status byte) { s.Status = status }
-func (s *Suite)	GetCallerInfo() *callerInfo { return s.callerInfo }
-func (s *Suite)	GetInfo() *suiteInfo { return s.info[s.callerInfo.name] }
+func (s *Suite) SetT(t *testing.T)          { s.T = t }
+func (s *Suite) GetLastStatus() byte        { return s.LastStatus }
+func (s *Suite) GetStatus() byte            { return s.Status }
+func (s *Suite) SetStatus(status byte)      { s.Status = status }
+func (s *Suite) GetCallerInfo() *callerInfo { return s.callerInfo }
+func (s *Suite) GetInfo() *suiteInfo        { return s.info[s.callerInfo.name] }
 
-func (s *Suite)	Reset() { 
+func (s *Suite) Reset() {
 	s.info = make(map[string]*suiteInfo)
 }
 
@@ -215,7 +215,7 @@ func (s *Suite) setup() {
 	s.callerInfo = newCallerInfo(3)
 	if _, present := s.info[s.callerInfo.name]; !present {
 		s.info[s.callerInfo.name] = new(suiteInfo)
-		
+
 	}
 	s.info[s.callerInfo.name].callerName = s.callerInfo.name
 	s.info[s.callerInfo.name].assertions++
@@ -305,17 +305,17 @@ func RunWithFormatter(t *testing.T, formatter Formatter, suites ...TCatcher) {
 // Run tests. Use default formatter.
 func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 	var (
-		beforeAllFound, afterAllFound bool
-		beforeAll, afterAll, before, after *reflect.FuncValue
+		beforeAllFound, afterAllFound          bool
+		beforeAll, afterAll, before, after     reflect.Value
 		totalPassed, totalFailed, totalPending int
 	)
 
 	for _, s := range suites {
-		beforeAll, afterAll, before, after = nil, nil, nil, nil
+		beforeAll, afterAll, before, after = reflect.Value{}, reflect.Value{}, reflect.Value{}, reflect.Value{}
 		s.SetT(t)
 		s.Reset()
 
-		iType := reflect.Typeof(s)
+		iType := reflect.TypeOf(s)
 
 		formatter.PrintSuiteName(iType.String())
 
@@ -337,15 +337,15 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 				}
 			}
 			if ok, _ := regexp.MatchString("^before", method.Name); ok {
-					before = method.Func
+				before = method.Func
 			}
 			if ok, _ := regexp.MatchString("^after", method.Name); ok {
-					after = method.Func
+				after = method.Func
 			}
 		}
 
-		if beforeAll != nil {
-			beforeAll.Call([]reflect.Value{reflect.NewValue(s)})
+		if beforeAll.IsValid() {
+			beforeAll.Call([]reflect.Value{reflect.ValueOf(s)})
 		}
 
 		for i := 0; i < iType.NumMethod(); i++ {
@@ -355,33 +355,33 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 
 				s.SetStatus(STATUS_PASS)
 
-				if before != nil {
-					before.Call([]reflect.Value{reflect.NewValue(s)})
+				if before.IsValid() {
+					before.Call([]reflect.Value{reflect.ValueOf(s)})
 				}
 
-				method.Func.Call([]reflect.Value{reflect.NewValue(s)})
+				method.Func.Call([]reflect.Value{reflect.ValueOf(s)})
 
-				if after != nil {
-					after.Call([]reflect.Value{reflect.NewValue(s)})
+				if after.IsValid() {
+					after.Call([]reflect.Value{reflect.ValueOf(s)})
 				}
-				
+
 				switch s.GetStatus() {
-				case STATUS_PASS: 
+				case STATUS_PASS:
 					totalPassed++
-				case STATUS_FAIL: 
+				case STATUS_FAIL:
 					totalFailed++
-				case STATUS_PENDING: 
+				case STATUS_PENDING:
 					totalPending++
 				}
-					
+
 				formatter.PrintStatus(s.GetStatus(), s.GetInfo())
 
 			}
 
 		}
 
-		if afterAll != nil {
-			afterAll.Call([]reflect.Value{reflect.NewValue(s)})
+		if afterAll.IsValid() {
+			afterAll.Call([]reflect.Value{reflect.ValueOf(s)})
 		}
 	}
 
