@@ -140,7 +140,7 @@ func (formatter *TDDFormatter) PrintFinalReport(passed, failed, pending int) {
 }
 
 func (formatter *TDDFormatter) AllowedMethodsPattern() string {
-	return "^test.*"
+	return "^Test.*"
 }
 
 type BDDFormatter struct {
@@ -170,7 +170,7 @@ func (formatter *BDDFormatter) PrintFinalReport(passed, failed, pending int) {
 }
 
 func (formatter *BDDFormatter) AllowedMethodsPattern() string {
-	return "^should_.*"
+	return "^Should_.*"
 }
 
 func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
@@ -290,7 +290,7 @@ func (s *Suite) Failed() bool {
 }
 
 // Check if the test function has failed.
-func (s *Suite) TestFailed() bool {
+func (s *Suite) FailedTest() bool {
 	return s.Status == STATUS_FAIL
 }
 
@@ -319,27 +319,27 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 
 		formatter.PrintSuiteName(iType.String())
 
-		// search for before and after methods
+		// search for Before and After methods
 		for i := 0; i < iType.NumMethod(); i++ {
 			method := iType.Method(i)
-			if ok, _ := regexp.MatchString("^beforeAll", method.Name); ok {
+			if ok, _ := regexp.MatchString("^BeforeAll", method.Name); ok {
 				if !beforeAllFound {
 					beforeAll = method.Func
 					beforeAllFound = true
 					continue
 				}
 			}
-			if ok, _ := regexp.MatchString("^afterAll", method.Name); ok {
+			if ok, _ := regexp.MatchString("^AfterAll", method.Name); ok {
 				if !afterAllFound {
 					afterAll = method.Func
 					afterAllFound = true
 					continue
 				}
 			}
-			if ok, _ := regexp.MatchString("^before", method.Name); ok {
+			if ok, _ := regexp.MatchString("^Before", method.Name); ok {
 				before = method.Func
 			}
-			if ok, _ := regexp.MatchString("^after", method.Name); ok {
+			if ok, _ := regexp.MatchString("^After", method.Name); ok {
 				after = method.Func
 			}
 		}
