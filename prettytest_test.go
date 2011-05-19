@@ -37,64 +37,64 @@ type testSuite struct { Suite }
 type beforeAfterSuite struct { Suite }
 type bddFormatterSuite struct { Suite }
 
-func (suite *testSuite) testTrueFalse() {
+func (suite *testSuite) TestTrueFalse() {
 	suite.True(true)
 	suite.False(false)
 }
 
-func (suite *testSuite) testEqualNotEqual() {
+func (suite *testSuite) TestEqualNotEqual() {
 	suite.Equal("foo", "foo")
 	suite.NotEqual("foo", "bar")
 }
 
-func (suite *testSuite) testNil() { 
+func (suite *testSuite) TestNil() { 
 	suite.Nil(nil)
 }
 
-func (suite *testSuite) testNotNil() {
+func (suite *testSuite) TestNotNil() {
 	suite.NotNil([]byte{1,2,3})
 }
 
-func (suite *testSuite) testPath() {
+func (suite *testSuite) TestPath() {
 	ioutil.WriteFile("testfile", nil, 0600)
 	suite.Path("testfile")
 	// suite.Path("foo")
 	// suite.True(suite.Failed())
 }
 
-func (suite *testSuite) testPending() { 
+func (suite *testSuite) TestPending() { 
 	suite.Pending()
 }
 
-func (suite *testSuite) after() {
+func (suite *testSuite) After() {
 	os.Remove("testfile")
 }
 
-func (suite *beforeAfterSuite) before() {
+func (suite *beforeAfterSuite) Before() {
 	state += 2
 	beforeState++
 }
 
-func (suite *beforeAfterSuite) after() {
+func (suite *beforeAfterSuite) After() {
 	state--
 	afterState--
 }
 
-func (suite *beforeAfterSuite) beforeAll() {
+func (suite *beforeAfterSuite) BeforeAll() {
 	state = 0
 	beforeAllState++
 }
 
-func (suite *beforeAfterSuite) afterAll() {
+func (suite *beforeAfterSuite) AfterAll() {
 	state = 0
 	afterAllState--
 }
 
-func (suite *beforeAfterSuite) testSetup_1() {
+func (suite *beforeAfterSuite) TestSetup_1() {
 	suite.Equal(2, state)
 }
 
-func (suite *beforeAfterSuite) testSetup_2() {
+func (suite *beforeAfterSuite) TestSetup_2() {
 	suite.Equal(3, state)
 }
 
@@ -112,11 +112,11 @@ func TestPrettyTest(t *testing.T) {
 	}
 }
 
-func (suite *bddFormatterSuite) should_use_green_on_passing_examples() {
+func (suite *bddFormatterSuite) Should_use_green_on_passing_examples() {
 	suite.True(true)
 }
 
-func (suite *bddFormatterSuite) should_use_yellow_on_pending_examples() {
+func (suite *bddFormatterSuite) Should_use_yellow_on_pending_examples() {
 	suite.Pending()
 }
 
