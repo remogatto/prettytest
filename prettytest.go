@@ -83,7 +83,7 @@ func newCallerInfo(skip int) *callerInfo {
 	if !ok {
 		panic("An error occured while retrieving caller info!")
 	}
-	callerName := strings.Split(runtime.FuncForPC(pc).Name(), ".")[1]
+	callerName := strings.Split(runtime.FuncForPC(pc).Name(), ".", -1)[1]
 	return &callerInfo{callerName, fn, line}
 }
 
@@ -125,11 +125,11 @@ func (formatter *TDDFormatter) PrintSuiteName(name string) {
 func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	switch status {
 	case STATUS_FAIL:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelFAIL, strings.Split(info.callerName, "·")[1], info.assertions)
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelFAIL, strings.Split(info.callerName, "·", -1)[1], info.assertions)
 	case STATUS_PASS:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPASS, strings.Split(info.callerName, "·")[1], info.assertions)
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPASS, strings.Split(info.callerName, "·", -1)[1], info.assertions)
 	case STATUS_PENDING:
-		fmt.Printf(formatTag+"%s\n", labelPENDING, strings.Split(info.callerName, "·")[1])
+		fmt.Printf(formatTag+"%s\n", labelPENDING, strings.Split(info.callerName, "·", -1)[1])
 
 	}
 }
@@ -174,14 +174,14 @@ func (formatter *BDDFormatter) AllowedMethodsPattern() string {
 }
 
 func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
-	s := strings.Split(text, sep)
+	s := strings.Split(text, sep, -1)
 
 	if len(s) < 2 {
 		panic("Can't use BDD formatter!")
 	}
 
 	stringWithUnderscores := s[1]
-	splittedByUnderscores := strings.Split(stringWithUnderscores, "_")
+	splittedByUnderscores := strings.Split(stringWithUnderscores, "_", -1)
 
 	for _, v := range splittedByUnderscores {
 		result += v + " "
