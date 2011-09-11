@@ -56,15 +56,15 @@ const (
 const formatTag = "\t%s\t"
 
 func green(text string) string {
-	return fmt.Sprintf("\033[32m%s\033[0m", text)
+	return "\033[32m" + text + "\033[0m"
 }
 
 func red(text string) string {
-	return fmt.Sprintf("\033[31m%s\033[0m", text)
+	return "\033[31m" + text + "\033[0m"
 }
 
 func yellow(text string) string {
-	return fmt.Sprintf("\033[33m%s\033[0m", text)
+	return "\033[33m" + text + "\033[0m"
 }
 
 var (
@@ -83,7 +83,7 @@ func newCallerInfo(skip int) *callerInfo {
 	if !ok {
 		panic("An error occured while retrieving caller info!")
 	}
-	callerName := strings.Split(runtime.FuncForPC(pc).Name(), ".")[1]
+	callerName := strings.Join(strings.Split(runtime.FuncForPC(pc).Name(), ".")[1:], ".")
 	return &callerInfo{callerName, fn, line}
 }
 
@@ -123,14 +123,18 @@ func (formatter *TDDFormatter) PrintSuiteName(name string) {
 }
 
 func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
+	callerName := info.callerName
+	if strings.Contains(callerName, ".") {
+		callerName = strings.Split(callerName, ".")[1]
+	}
+
 	switch status {
 	case STATUS_FAIL:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelFAIL, strings.Split(info.callerName, "·")[1], info.assertions)
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelFAIL, callerName, info.assertions)
 	case STATUS_PASS:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPASS, strings.Split(info.callerName, "·")[1], info.assertions)
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPASS, callerName, info.assertions)
 	case STATUS_PENDING:
-		fmt.Printf(formatTag+"%s\n", labelPENDING, strings.Split(info.callerName, "·")[1])
-
+		fmt.Printf(formatTag+"%s\n", labelPENDING, callerName)
 	}
 }
 
@@ -152,7 +156,10 @@ func (formatter *BDDFormatter) PrintSuiteName(name string) {
 }
 
 func (formatter *BDDFormatter) PrintStatus(status byte, info *suiteInfo) {
-	shouldText := formatter.splitString(info.callerName, "·")
+	shouldText := info.callerName
+	if strings.Contains(info.callerName, ".") {
+		shouldText = formatter.splitString(info.callerName, ".")
+	}
 
 	switch status {
 	case STATUS_FAIL:
@@ -201,7 +208,7 @@ func (s *Suite) Reset() {
 }
 
 func (s *Suite) fail(exp, act interface{}, info *callerInfo) {
-	s.T.Errorf("Expected %s but got %s -- %s:%d\n", exp, act, info.fn, info.line)
+	s.T.Errorf("Expected %v but got %v -- %s:%d\n", exp, act, info.fn, info.line)
 	s.Status, s.LastStatus = STATUS_FAIL, STATUS_FAIL
 }
 
