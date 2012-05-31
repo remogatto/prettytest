@@ -125,7 +125,7 @@ func (formatter *TDDFormatter) PrintSuiteName(name string) {
 func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	callerName := info.callerName
 	if strings.Contains(callerName, ".") {
-		callerName = strings.Split(callerName, ".")[1]
+		callerName = strings.Split(callerName, ".")[2]
 	}
 
 	switch status {
@@ -187,7 +187,7 @@ func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
 		panic("Can't use BDD formatter!")
 	}
 
-	stringWithUnderscores := s[1]
+	stringWithUnderscores := s[2]
 	splittedByUnderscores := strings.Split(stringWithUnderscores, "_")
 
 	for _, v := range splittedByUnderscores {
@@ -324,7 +324,7 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 
 		iType := reflect.TypeOf(s)
 
-		formatter.PrintSuiteName(iType.String())
+		formatter.PrintSuiteName(strings.Split(iType.String(), ".")[1])
 
 		// search for Before and After methods
 		for i := 0; i < iType.NumMethod(); i++ {
