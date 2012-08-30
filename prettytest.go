@@ -124,8 +124,10 @@ func (formatter *TDDFormatter) PrintSuiteName(name string) {
 
 func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	callerName := info.callerName
+    fmt.Printf("\nCaller:%s\n", callerName)
 	if strings.Contains(callerName, ".") {
-		callerName = strings.Split(callerName, ".")[2]
+        t := strings.Split(callerName, ".")
+        callerName = t[len(t)-1]
 	}
 
 	switch status {
