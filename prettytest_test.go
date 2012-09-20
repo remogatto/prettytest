@@ -47,7 +47,7 @@ func (suite *testSuite) TestEqualNotEqual() {
 	suite.NotEqual("foo", "bar")
 }
 
-func (suite *testSuite) TestNil() { 
+func (suite *testSuite) TestNil() {
 	suite.Nil(nil)
 }
 
@@ -62,7 +62,7 @@ func (suite *testSuite) TestPath() {
 	// suite.True(suite.Failed())
 }
 
-func (suite *testSuite) TestPending() { 
+func (suite *testSuite) TestPending() {
 	suite.Pending()
 }
 
