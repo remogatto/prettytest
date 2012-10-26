@@ -45,6 +45,7 @@ import (
 	"strings"
 	"os"
 	"fmt"
+	"flag"
 )
 
 const (
@@ -54,6 +55,8 @@ const (
 )
 
 const formatTag = "\t%s\t"
+
+var testToRun = flag.String("pt.run", "", "[prettytest] regular expression to select tests and examples to run")
 
 func green(text string) string {
 	return "\033[32m" + text + "\033[0m"
@@ -319,6 +322,8 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 		totalPassed, totalFailed, totalPending int
 	)
 
+	flag.Parse()
+
 	for _, s := range suites {
 		beforeAll, afterAll, before, after = reflect.Value{}, reflect.Value{}, reflect.Value{}, reflect.Value{}
 		s.SetT(t)
@@ -359,32 +364,31 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 
 		for i := 0; i < iType.NumMethod(); i++ {
 			method := iType.Method(i)
+			if ok, _ := regexp.MatchString(*testToRun, method.Name); ok {
+				if ok, _ := regexp.MatchString(formatter.AllowedMethodsPattern(), method.Name); ok {
 
-			if ok, _ := regexp.MatchString(formatter.AllowedMethodsPattern(), method.Name); ok {
+					s.SetStatus(STATUS_PASS)
 
-				s.SetStatus(STATUS_PASS)
+					if before.IsValid() {
+						before.Call([]reflect.Value{reflect.ValueOf(s)})
+					}
+					method.Func.Call([]reflect.Value{reflect.ValueOf(s)})
 
-				if before.IsValid() {
-					before.Call([]reflect.Value{reflect.ValueOf(s)})
+					if after.IsValid() {
+						after.Call([]reflect.Value{reflect.ValueOf(s)})
+					}
+
+					switch s.GetStatus() {
+					case STATUS_PASS:
+						totalPassed++
+					case STATUS_FAIL:
+						totalFailed++
+					case STATUS_PENDING:
+						totalPending++
+					}
+					
+					formatter.PrintStatus(s.GetStatus(), s.GetInfo())
 				}
-
-				method.Func.Call([]reflect.Value{reflect.ValueOf(s)})
-
-				if after.IsValid() {
-					after.Call([]reflect.Value{reflect.ValueOf(s)})
-				}
-
-				switch s.GetStatus() {
-				case STATUS_PASS:
-					totalPassed++
-				case STATUS_FAIL:
-					totalFailed++
-				case STATUS_PENDING:
-					totalPending++
-				}
-
-				formatter.PrintStatus(s.GetStatus(), s.GetInfo())
-
 			}
 
 		}
