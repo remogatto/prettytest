@@ -30,11 +30,14 @@ to simplify/prettify testing in golang.
 
 It features:
 
-* a simple assertion vocabulary for better readability
-* colorful output
+  * a simple assertion vocabulary for better readability
+  * customizable formatters through interfaces
+  * integrated with the go test command
+  * pretty and colorful output with reports
+
+See prettytest_test.go for an usage example.
 
 */
-
 package prettytest
 
 import (
@@ -111,11 +114,14 @@ type Suite struct {
 	info               map[string]*suiteInfo
 }
 
-// Formatters
+// Formatter is the interface each formatter should implement.
 type Formatter interface {
 	PrintSuiteName(name string)
 	PrintStatus(status byte, info *suiteInfo)
 	PrintFinalReport(passed, failed, pending int)
+
+	// AllowedMethodPattern returns a regexp for the allowed
+	// method name (e.g. "^Test.*" for the TDDFormatter)
 	AllowedMethodsPattern() string
 }
 
@@ -127,7 +133,6 @@ func (formatter *TDDFormatter) PrintSuiteName(name string) {
 
 func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	callerName := info.callerName
-    fmt.Printf("\nCaller:%s\n", callerName)
 	if strings.Contains(callerName, ".") {
         t := strings.Split(callerName, ".")
         callerName = t[len(t)-1]
@@ -233,7 +238,7 @@ func (s *Suite) setup() {
 	s.info[s.callerInfo.name].assertions++
 }
 
-// Assert that the expected value equals the actual value.
+// Equal asserts that the expected value equals the actual value.
 func (s *Suite) Equal(exp, act interface{}) {
 	s.setup()
 	if exp != act {
@@ -241,7 +246,7 @@ func (s *Suite) Equal(exp, act interface{}) {
 	}
 }
 
-// Assert that the expected value is not equal to the actual
+// NotEqual asserts that the expected value is not equal to the actual
 // value.
 func (s *Suite) NotEqual(exp, act interface{}) {
 	s.setup()
@@ -250,7 +255,7 @@ func (s *Suite) NotEqual(exp, act interface{}) {
 	}
 }
 
-// Assert that the value is true.
+// True asserts that the value is true.
 func (s *Suite) True(value bool) {
 	s.setup()
 	if !value {
@@ -258,7 +263,7 @@ func (s *Suite) True(value bool) {
 	}
 }
 
-// Assert that the value is false.
+// False asserts that the value is false.
 func (s *Suite) False(value bool) {
 	s.setup()
 	if value {
@@ -266,7 +271,7 @@ func (s *Suite) False(value bool) {
 	}
 }
 
-// Assert that the given path exists.
+// Path asserts that the given path exists.
 func (s *Suite) Path(path string) {
 	s.setup()
 	if _, err := os.Stat(path); err != nil {
@@ -274,7 +279,7 @@ func (s *Suite) Path(path string) {
 	}
 }
 
-// Assert that the value is nil.
+// Nil asserts that the value is nil.
 func (s *Suite) Nil(value interface{}) {
 	s.setup()
 	if value != nil {
@@ -282,7 +287,7 @@ func (s *Suite) Nil(value interface{}) {
 	}
 }
 
-// Assert that the value is not nil.
+// NotNil asserts that the value is not nil.
 func (s *Suite) NotNil(value interface{}) {
 	s.setup()
 	if value == nil {
@@ -290,26 +295,28 @@ func (s *Suite) NotNil(value interface{}) {
 	}
 }
 
-// Mark the test function as pending.
+// Pending marks the test function as pending.
 func (s *Suite) Pending() {
 	s.setup()
 	s.Status = STATUS_PENDING
 }
 
-// Check if the last assertion has failed.
+// Failed checks if the last assertion has failed.
 func (s *Suite) Failed() bool {
 	return s.LastStatus == STATUS_FAIL
 }
 
-// Check if the test function has failed.
+// FailedTest checks if the test function has failed.
 func (s *Suite) FailedTest() bool {
 	return s.Status == STATUS_FAIL
 }
 
+// Run runs the test suites.
 func Run(t *testing.T, suites ...TCatcher) {
 	run(t, new(TDDFormatter), suites...)
 }
 
+// Run runs the test suites using the given formatter.
 func RunWithFormatter(t *testing.T, formatter Formatter, suites ...TCatcher) {
 	run(t, formatter, suites...)
 }
