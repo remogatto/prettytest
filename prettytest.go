@@ -41,14 +41,14 @@ See prettytest_test.go for an usage example.
 package prettytest
 
 import (
-	"testing"
-	"runtime"
+	"flag"
+	"fmt"
+	"os"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
-	"os"
-	"fmt"
-	"flag"
+	"testing"
 )
 
 const (
@@ -134,8 +134,8 @@ func (formatter *TDDFormatter) PrintSuiteName(name string) {
 func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	callerName := info.callerName
 	if strings.Contains(callerName, ".") {
-        t := strings.Split(callerName, ".")
-        callerName = t[len(t)-1]
+		t := strings.Split(callerName, ".")
+		callerName = t[len(t)-1]
 	}
 
 	switch status {
@@ -393,7 +393,7 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 					case STATUS_PENDING:
 						totalPending++
 					}
-					
+
 					formatter.PrintStatus(s.GetStatus(), s.GetInfo())
 				}
 			}

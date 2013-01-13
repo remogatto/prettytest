@@ -26,16 +26,16 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 package prettytest
 
 import (
-	"testing"
-	"os"
 	"io/ioutil"
+	"os"
+	"testing"
 )
 
 var state, beforeState, afterState, beforeAllState, afterAllState int
 
-type testSuite struct { Suite }
-type beforeAfterSuite struct { Suite }
-type bddFormatterSuite struct { Suite }
+type testSuite struct{ Suite }
+type beforeAfterSuite struct{ Suite }
+type bddFormatterSuite struct{ Suite }
 
 func (suite *testSuite) TestTrueFalse() {
 	suite.True(true)
@@ -52,7 +52,7 @@ func (suite *testSuite) TestNil() {
 }
 
 func (suite *testSuite) TestNotNil() {
-	suite.NotNil([]byte{1,2,3})
+	suite.NotNil([]byte{1, 2, 3})
 }
 
 func (suite *testSuite) TestPath() {
