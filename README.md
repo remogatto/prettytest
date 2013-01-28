@@ -48,6 +48,10 @@ func (t *testSuite) TestEquality() {
 	t.Equal("awesome", "awesome")
 }
 
+//failing test
+func (t *testSuite) TestInequality() {
+	t.NotEqual("awesome", "awesome")
+}
 ~~~
 
 Then, to run the tests simply use the the go test command:
