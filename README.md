@@ -16,7 +16,7 @@ PrettyTest main features are:
 
 # Quick start
 
-<pre>
+~~~go
 package foo
 
 import (
@@ -24,33 +24,50 @@ import (
 	"testing"
 )
 
+//start of setup
 type testSuite struct {
 	prettytest.Suite
 }
 
-func (t *testSuite) TestTrueIsTrue() {
-	t.True(true)
-}
-
-func TestFoo(t *testing.T) {
+func TestRunner(t *testing.T) {
 	prettytest.RunWithFormatter(
 		t,
 		new(prettytest.TDDFormatter),
 		new(testSuite),
 	)
 }
-</pre>
+//end of setup
+
+
+//your tests start here
+func (t *testSuite) TestTrueIsTrue() {
+	t.True(true)
+}
+
+func (t *testSuite) TestEquality() {
+  t.Equal("awesome", "awesome")
+}
+
+~~~
 
 Then, to run the tests simply use the the go test command:
 
-<pre>
+~~~bash
 $ go test
 
 testSuite:
-	OK	TestTrueIsTrue                (1 assertion(s))
+	OK	  TestEquality                  (1 assertion(s))
+	FAIL	TestInequality                (1 assertion(s))
+	OK	  TestTrueIsTrue                (1 assertion(s))
 
-1 tests, 1 passed, 0 failed, 0 pending
-</pre>
+3 tests, 2 passed, 1 failed, 0 pending
+--- FAIL: TestFoo (0.00 seconds)
+prettytest.go:221: 	Expected awesome but got awesome -- /home/minhajuddin/s/gotest/foo_test.go:34
+		FAIL
+exit status 1
+PASS
+
+~~~
 
 # LICENSE
 
