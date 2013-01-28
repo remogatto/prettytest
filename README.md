@@ -56,9 +56,9 @@ Then, to run the tests simply use the the go test command:
 $ go test
 
 testSuite:
-	OK	  TestEquality               (1 assertion(s))
-	FAIL	  TestInequality             (1 assertion(s))
-	OK	  TestTrueIsTrue             (1 assertion(s))
+	OK	TestEquality		(1 assertion(s))
+	FAIL	TestInequality		(1 assertion(s))
+	OK	TestTrueIsTrue		(1 assertion(s))
 
 3 tests, 2 passed, 1 failed, 0 pending
 --- FAIL: TestFoo (0.00 seconds)
