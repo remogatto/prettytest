@@ -24,7 +24,7 @@ import (
 	"testing"
 )
 
-//start of setup
+// Start of setup
 type testSuite struct {
 	prettytest.Suite
 }
@@ -36,7 +36,7 @@ func TestRunner(t *testing.T) {
 		new(testSuite),
 	)
 }
-//end of setup
+// End of setup
 
 
 //your tests start here
@@ -45,7 +45,7 @@ func (t *testSuite) TestTrueIsTrue() {
 }
 
 func (t *testSuite) TestEquality() {
-  t.Equal("awesome", "awesome")
+	t.Equal("awesome", "awesome")
 }
 
 ~~~
@@ -56,9 +56,9 @@ Then, to run the tests simply use the the go test command:
 $ go test
 
 testSuite:
-	OK	  TestEquality                  (1 assertion(s))
-	FAIL	TestInequality                (1 assertion(s))
-	OK	  TestTrueIsTrue                (1 assertion(s))
+	OK	  TestEquality               (1 assertion(s))
+	FAIL	  TestInequality             (1 assertion(s))
+	OK	  TestTrueIsTrue             (1 assertion(s))
 
 3 tests, 2 passed, 1 failed, 0 pending
 --- FAIL: TestFoo (0.00 seconds)
