@@ -66,6 +66,10 @@ func (suite *testSuite) TestPending() {
 	suite.Pending()
 }
 
+func (suite *testSuite) TestNoAssertions() {
+
+}
+
 func (suite *testSuite) After() {
 	os.Remove("testfile")
 }
@@ -119,6 +123,8 @@ func (suite *bddFormatterSuite) Should_use_green_on_passing_examples() {
 func (suite *bddFormatterSuite) Should_use_yellow_on_pending_examples() {
 	suite.Pending()
 }
+
+func (suite *bddFormatterSuite) Should_use_yellow_on_examples_with_no_assertions() {}
 
 func TestBDDStyleSpecs(t *testing.T) {
 	RunWithFormatter(

@@ -52,14 +52,17 @@ import (
 )
 
 const (
-	STATUS_PASS = iota
+	STATUS_NO_ASSERTIONS = iota
+	STATUS_PASS
 	STATUS_FAIL
 	STATUS_PENDING
 )
 
 const formatTag = "\t%s\t"
 
-var testToRun = flag.String("pt.run", "", "[prettytest] regular expression to select tests and examples to run")
+var (
+	testToRun = flag.String("pt.run", "", "[prettytest] regular expression that filters tests and examples to run")
+)
 
 func green(text string) string {
 	return "\033[32m" + text + "\033[0m"
@@ -74,9 +77,10 @@ func yellow(text string) string {
 }
 
 var (
-	labelFAIL    = red("FAIL")
+	labelFAIL    = red("F")
 	labelPASS    = green("OK")
-	labelPENDING = yellow("PENDING")
+	labelPENDING = yellow("PE")
+	labelNOASSERTIONS = yellow("NA")
 )
 
 type callerInfo struct {
@@ -118,13 +122,14 @@ type Suite struct {
 type Formatter interface {
 	PrintSuiteName(name string)
 	PrintStatus(status byte, info *suiteInfo)
-	PrintFinalReport(passed, failed, pending int)
+	PrintFinalReport(passed, failed, pending, noAssertions int)
 
 	// AllowedMethodPattern returns a regexp for the allowed
 	// method name (e.g. "^Test.*" for the TDDFormatter)
 	AllowedMethodsPattern() string
 }
 
+// TDDFormatter is a very simple TDD-like formatter.
 type TDDFormatter struct{}
 
 func (formatter *TDDFormatter) PrintSuiteName(name string) {
@@ -144,19 +149,23 @@ func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	case STATUS_PASS:
 		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPASS, callerName, info.assertions)
 	case STATUS_PENDING:
-		fmt.Printf(formatTag+"%s\n", labelPENDING, callerName)
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPENDING, callerName, info.assertions)
+	case STATUS_NO_ASSERTIONS:
+		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelNOASSERTIONS, callerName, info.assertions)
+
 	}
 }
 
-func (formatter *TDDFormatter) PrintFinalReport(passed, failed, pending int) {
+func (formatter *TDDFormatter) PrintFinalReport(passed, failed, pending, noAssertions int) {
 	total := passed + failed + pending
-	fmt.Printf("\n%d tests, %d passed, %d failed, %d pending\n", total, passed, failed, pending)
+	fmt.Printf("\n%d tests, %d passed, %d failed, %d pending, %d with no assertions\n", total, passed, failed, pending, noAssertions)
 }
 
 func (formatter *TDDFormatter) AllowedMethodsPattern() string {
 	return "^Test.*"
 }
 
+// BDDFormatter is a formatter à la rspec.
 type BDDFormatter struct {
 	Description string
 }
@@ -170,7 +179,6 @@ func (formatter *BDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 	if strings.Contains(info.callerName, ".") {
 		shouldText = formatter.splitString(info.callerName, ".")
 	}
-
 	switch status {
 	case STATUS_FAIL:
 		fmt.Printf("- %s\n", red(shouldText))
@@ -178,12 +186,14 @@ func (formatter *BDDFormatter) PrintStatus(status byte, info *suiteInfo) {
 		fmt.Printf("- %s\n", green(shouldText))
 	case STATUS_PENDING:
 		fmt.Printf("- %s\t(Not Yet Implemented)\n", yellow(shouldText))
+	case STATUS_NO_ASSERTIONS:
+		fmt.Printf("- %s\t(No assertions found)\n", yellow(shouldText))
 	}
 }
 
-func (formatter *BDDFormatter) PrintFinalReport(passed, failed, pending int) {
-	total := passed + failed + pending
-	fmt.Printf("\n%d examples, %d passed, %d failed, %d pending\n", total, passed, failed, pending)
+func (formatter *BDDFormatter) PrintFinalReport(passed, failed, pending, noAssertions int) {
+	total := passed + failed + pending + noAssertions
+	fmt.Printf("\n%d examples, %d passed, %d failed, %d pending, %d with no assertions\n", total, passed, failed, pending, noAssertions)
 }
 
 func (formatter *BDDFormatter) AllowedMethodsPattern() string {
@@ -211,8 +221,7 @@ func (s *Suite) GetLastStatus() byte        { return s.LastStatus }
 func (s *Suite) GetStatus() byte            { return s.Status }
 func (s *Suite) SetStatus(status byte)      { s.Status = status }
 func (s *Suite) GetCallerInfo() *callerInfo { return s.callerInfo }
-func (s *Suite) GetInfo() *suiteInfo        { return s.info[s.callerInfo.name] }
-
+func (s *Suite) GetInfo() *suiteInfo { return s.info[s.callerInfo.name] }
 func (s *Suite) Reset() {
 	s.info = make(map[string]*suiteInfo)
 }
@@ -228,7 +237,7 @@ func (s *Suite) failWithCustomMsg(msg string, info *callerInfo) {
 }
 
 func (s *Suite) setup() {
-	s.LastStatus = STATUS_PASS
+	s.Status, s.LastStatus = STATUS_PASS, STATUS_PASS
 	s.callerInfo = newCallerInfo(3)
 	if _, present := s.info[s.callerInfo.name]; !present {
 		s.info[s.callerInfo.name] = new(suiteInfo)
@@ -326,7 +335,7 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 	var (
 		beforeAllFound, afterAllFound          bool
 		beforeAll, afterAll, before, after     reflect.Value
-		totalPassed, totalFailed, totalPending int
+		totalPassed, totalFailed, totalPending, totalNoAssertions int
 	)
 
 	flag.Parse()
@@ -374,30 +383,37 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 			if ok, _ := regexp.MatchString(*testToRun, method.Name); ok {
 				if ok, _ := regexp.MatchString(formatter.AllowedMethodsPattern(), method.Name); ok {
 
-					s.SetStatus(STATUS_PASS)
+					s.SetStatus(STATUS_NO_ASSERTIONS)
 
 					if before.IsValid() {
 						before.Call([]reflect.Value{reflect.ValueOf(s)})
 					}
+
 					method.Func.Call([]reflect.Value{reflect.ValueOf(s)})
 
 					if after.IsValid() {
 						after.Call([]reflect.Value{reflect.ValueOf(s)})
 					}
 
-					switch s.GetStatus() {
+					status, info := s.GetStatus(), s.GetInfo()
+					
+					switch status {
 					case STATUS_PASS:
 						totalPassed++
 					case STATUS_FAIL:
 						totalFailed++
 					case STATUS_PENDING:
+						info.assertions = 0
 						totalPending++
+					case STATUS_NO_ASSERTIONS:
+						info.callerName = method.Name
+						info.assertions = 0
+						totalNoAssertions++
 					}
-
-					formatter.PrintStatus(s.GetStatus(), s.GetInfo())
+					formatter.PrintStatus(status, info)
 				}
 			}
-
+ 
 		}
 
 		if afterAll.IsValid() {
@@ -405,5 +421,5 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 		}
 	}
 
-	formatter.PrintFinalReport(totalPassed, totalFailed, totalPending)
+	formatter.PrintFinalReport(totalPassed, totalFailed, totalPending, totalNoAssertions)
 }
