@@ -18,6 +18,7 @@ const (
 	// Multiple events that occur for the same file in this
 	// time windows will be discarded.
 	DISCARD_TIME = 1 * time.Second
+	RERUN_TIME = 2 * time.Second
 )
 
 var (
@@ -51,6 +52,7 @@ func getEvent(filename string) *eventOnFile {
 // sigterm is a type for handling a SIGTERM signal.
 type sigterm struct {
 	hitCounter byte
+	watchDir string
 }
 
 func (h *sigterm) HandleSignal(s os.Signal) {
@@ -62,8 +64,13 @@ func (h *sigterm) HandleSignal(s os.Signal) {
 				application.Exit()
 				return
 			}
-			application.Printf("%s\n", "Hit CTRL-C again to exit from PrettyAutoTest")
+			application.Printf("Hit CTRL-C again to exit otherwise tests will be re-runned in %s.", RERUN_TIME)
 			h.hitCounter++
+			go func() {
+				time.Sleep(RERUN_TIME)
+				execGoTest(h.watchDir)
+				h.hitCounter = 0
+			}()
 		}
 	}
 }
@@ -72,6 +79,10 @@ func (h *sigterm) HandleSignal(s os.Signal) {
 type watcherLoop struct {
 	pause, terminate chan int
 	watchDir string
+}
+
+func newWatcherLoop(watchDir string) *watcherLoop {
+	return &watcherLoop{make(chan int), make(chan int), watchDir}
 }
 
 func (l *watcherLoop) Pause() chan int {
@@ -83,6 +94,9 @@ func (l *watcherLoop) Terminate() chan int {
 }
 
 func (l *watcherLoop) Run() {
+	// Run the tests for the first time.
+	execGoTest(l.watchDir)
+
 	watcher, err := fsnotify.NewWatcher()
 	err = watcher.Watch(l.watchDir)
 	if err != nil {
@@ -129,10 +143,6 @@ func (l *watcherLoop) Run() {
 	}
 }
 
-func newWatcherLoop(watchDir string) *watcherLoop {
-	return &watcherLoop{make(chan int), make(chan int), watchDir}
-}
-
 func usage() {
 	fmt.Fprintf(os.Stderr, "PrettyAutoTest continously watches for changes in folder and re-run the tests\n\n")
 	fmt.Fprintf(os.Stderr, "Usage:\n\n")
@@ -172,7 +182,7 @@ func main() {
 		return
 	}
 	application.Register("Watcher Loop", newWatcherLoop(*watchDir))
-	application.InstallSignalHandler(&sigterm{})
+	application.InstallSignalHandler(&sigterm{watchDir: *watchDir})
 	exitCh := make(chan bool)
 	application.Run(exitCh)
 	<-exitCh

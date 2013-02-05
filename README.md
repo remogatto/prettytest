@@ -73,6 +73,29 @@ PASS
 
 ~~~
 
+# PrettyAutoTest
+
+PrettyAutoTest is a command that continously watches for changes in
+your source directory and - in case - re-executes the
+tests. PrettyAutoTest facilitates an agile approach when developing
+with Go: write tests, write implementations, have immediate visual
+feedback about your progress.
+
+In order to install PrettyAutoTest simply type:
+
+~~~bash
+$ go get -v github.com/remogatto/prettytest/pta/
+~~~
+
+Then simply launch the <tt>pta</tt> command move in your working
+directory and type:
+
+~~~bash
+$ pta
+~~~
+
+Type <tt>pta -h</tt> for additional help.
+
 # LICENSE
 
 Copyright (c) 2010 Andrea Fazzi
