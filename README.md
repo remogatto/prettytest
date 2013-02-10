@@ -77,9 +77,9 @@ PASS
 
 PrettyAutoTest is a command that continously watches for changes in
 your source directory and - in case - re-executes the
-tests. PrettyAutoTest facilitates an agile approach when developing
-with Go: write tests, write implementations, have immediate visual
-feedback about your progress.
+tests. PrettyAutoTest promotes an agile development approach: write tests, write the implementation that satisfies the tests, have an immediate visual feedback about your progress.
+
+Check this video: http://youtu.be/B35N6q3sveQ
 
 In order to install PrettyAutoTest simply type:
 
