@@ -48,6 +48,8 @@ func (suite *testSuite) TestEqualNotEqual() {
 }
 
 func (suite *testSuite) TestNil() {
+	var v *int = nil
+	suite.Nil(v)
 	suite.Nil(nil)
 }
 

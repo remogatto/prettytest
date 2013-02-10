@@ -77,9 +77,9 @@ func yellow(text string) string {
 }
 
 var (
-	labelFAIL    = red("F")
-	labelPASS    = green("OK")
-	labelPENDING = yellow("PE")
+	labelFAIL         = red("F")
+	labelPASS         = green("OK")
+	labelPENDING      = yellow("PE")
 	labelNOASSERTIONS = yellow("NA")
 )
 
@@ -216,12 +216,14 @@ func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
 	return strings.TrimSpace(result)
 }
 
-func (s *Suite) SetT(t *testing.T)          { s.T = t }
-func (s *Suite) GetLastStatus() byte        { return s.LastStatus }
-func (s *Suite) GetStatus() byte            { return s.Status }
-func (s *Suite) SetStatus(status byte)      { s.Status = status }
+func (s *Suite) SetT(t *testing.T)   { s.T = t }
+func (s *Suite) GetLastStatus() byte { return s.LastStatus }
+func (s *Suite) GetStatus() byte     { return s.Status }
+func (s *Suite) SetStatus(status byte) {
+	s.LastStatus, s.Status = status, status
+}
 func (s *Suite) GetCallerInfo() *callerInfo { return s.callerInfo }
-func (s *Suite) GetInfo() *suiteInfo { return s.info[s.callerInfo.name] }
+func (s *Suite) GetInfo() *suiteInfo        { return s.info[s.callerInfo.name] }
 func (s *Suite) Reset() {
 	s.info = make(map[string]*suiteInfo)
 }
@@ -237,7 +239,12 @@ func (s *Suite) failWithCustomMsg(msg string, info *callerInfo) {
 }
 
 func (s *Suite) setup() {
-	s.Status, s.LastStatus = STATUS_PASS, STATUS_PASS
+	if s.LastStatus == STATUS_FAIL {
+		s.Status = STATUS_FAIL
+	}
+	if s.Status == STATUS_NO_ASSERTIONS {
+		s.Status = STATUS_PASS
+	}
 	s.callerInfo = newCallerInfo(3)
 	if _, present := s.info[s.callerInfo.name]; !present {
 		s.info[s.callerInfo.name] = new(suiteInfo)
@@ -291,15 +298,31 @@ func (s *Suite) Path(path string) {
 // Nil asserts that the value is nil.
 func (s *Suite) Nil(value interface{}) {
 	s.setup()
-	if value != nil {
-		s.failWithCustomMsg(fmt.Sprintf("Expected nil but got %s", value), s.callerInfo)
+	reflectValue := reflect.ValueOf(value)
+	kind := reflectValue.Kind()
+	isNil := kind == 0
+	if !isNil {
+		canBeNil := kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface || kind == reflect.Map || kind == reflect.Ptr || kind == reflect.Slice
+		if canBeNil {
+			isNil = reflectValue.IsNil()
+		} else {
+			isNil = false
+		}
+	}
+	if !isNil {
+		s.failWithCustomMsg(fmt.Sprintf("Expected nil but got %v", value), s.callerInfo)
 	}
 }
 
 // NotNil asserts that the value is not nil.
 func (s *Suite) NotNil(value interface{}) {
 	s.setup()
-	if value == nil {
+	reflectValue := reflect.ValueOf(value)
+	isNil := reflectValue.Kind() == 0
+	if !isNil {
+		isNil = reflectValue.IsNil()
+	}
+	if isNil {
 		s.failWithCustomMsg(fmt.Sprintf("Expected not nil value but got %s", value), s.callerInfo)
 	}
 }
@@ -333,8 +356,8 @@ func RunWithFormatter(t *testing.T, formatter Formatter, suites ...TCatcher) {
 // Run tests. Use default formatter.
 func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 	var (
-		beforeAllFound, afterAllFound          bool
-		beforeAll, afterAll, before, after     reflect.Value
+		beforeAllFound, afterAllFound                             bool
+		beforeAll, afterAll, before, after                        reflect.Value
 		totalPassed, totalFailed, totalPending, totalNoAssertions int
 	)
 
@@ -396,7 +419,7 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 					}
 
 					status, info := s.GetStatus(), s.GetInfo()
-					
+
 					switch status {
 					case STATUS_PASS:
 						totalPassed++
@@ -413,7 +436,7 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 					formatter.PrintStatus(status, info)
 				}
 			}
- 
+
 		}
 
 		if afterAll.IsValid() {
