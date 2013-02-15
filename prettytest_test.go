@@ -37,39 +37,40 @@ type testSuite struct{ Suite }
 type beforeAfterSuite struct{ Suite }
 type bddFormatterSuite struct{ Suite }
 
+func (suite *testSuite) TestNoAssertions() {}
+
 func (suite *testSuite) TestTrueFalse() {
 	suite.True(true)
 	suite.False(false)
+	suite.True(suite.False(false))
 }
 
 func (suite *testSuite) TestEqualNotEqual() {
 	suite.Equal("foo", "foo")
 	suite.NotEqual("foo", "bar")
+	suite.False(suite.Equal("foo", "bar"))
 }
 
 func (suite *testSuite) TestNil() {
 	var v *int = nil
 	suite.Nil(v)
 	suite.Nil(nil)
+	suite.True(suite.Nil(nil))
 }
 
 func (suite *testSuite) TestNotNil() {
 	suite.NotNil([]byte{1, 2, 3})
+	suite.True(suite.NotNil(1))
 }
 
 func (suite *testSuite) TestPath() {
 	ioutil.WriteFile("testfile", nil, 0600)
 	suite.Path("testfile")
-	// suite.Path("foo")
-	// suite.True(suite.Failed())
+	suite.False(suite.Path("foo"))
 }
 
 func (suite *testSuite) TestPending() {
 	suite.Pending()
-}
-
-func (suite *testSuite) TestNoAssertions() {
-
 }
 
 func (suite *testSuite) After() {

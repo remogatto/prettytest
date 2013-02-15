@@ -99,9 +99,8 @@ func newCallerInfo(skip int) *callerInfo {
 
 type TCatcher interface {
 	SetT(t *testing.T)
-	GetLastStatus() byte
-	GetStatus() byte
-	SetStatus(status byte)
+	GetStatus() *Status
+	SetStatus(status *Status)
 	GetInfo() *suiteInfo
 	Reset()
 }
@@ -111,17 +110,39 @@ type suiteInfo struct {
 	callerName string
 }
 
+type Status struct {
+	Code, LastCode byte
+	ErrorMessage   string
+}
+
+func (status *Status) pass() bool {
+	status.Code, status.LastCode = STATUS_PASS, STATUS_PASS
+	return true
+}
+
+func (status *Status) fail(exp, act interface{}, info *callerInfo) bool {
+	status.ErrorMessage = fmt.Sprintf("Expected %v but got %v -- %s:%d\n", exp, act, info.fn, info.line)
+	status.Code, status.LastCode = STATUS_FAIL, STATUS_FAIL
+	return false
+}
+
+func (status *Status) failWithCustomMsg(msg string, info *callerInfo) bool {
+	status.ErrorMessage = fmt.Sprintf("%s -- %s:%d\n", msg, info.fn, info.line)
+	status.Code, status.LastCode = STATUS_FAIL, STATUS_FAIL
+	return false
+}
+
 type Suite struct {
-	T                  *testing.T
-	Status, LastStatus byte
-	callerInfo         *callerInfo
-	info               map[string]*suiteInfo
+	T          *testing.T
+	Status     *Status
+	callerInfo *callerInfo
+	info       map[string]*suiteInfo
 }
 
 // Formatter is the interface each formatter should implement.
 type Formatter interface {
 	PrintSuiteName(name string)
-	PrintStatus(status byte, info *suiteInfo)
+	PrintStatus(status *Status, info *suiteInfo)
 	PrintFinalReport(passed, failed, pending, noAssertions int)
 
 	// AllowedMethodPattern returns a regexp for the allowed
@@ -136,14 +157,13 @@ func (formatter *TDDFormatter) PrintSuiteName(name string) {
 	fmt.Printf("\n%s:\n", name)
 }
 
-func (formatter *TDDFormatter) PrintStatus(status byte, info *suiteInfo) {
+func (formatter *TDDFormatter) PrintStatus(status *Status, info *suiteInfo) {
 	callerName := info.callerName
 	if strings.Contains(callerName, ".") {
 		t := strings.Split(callerName, ".")
 		callerName = t[len(t)-1]
 	}
-
-	switch status {
+	switch status.Code {
 	case STATUS_FAIL:
 		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelFAIL, callerName, info.assertions)
 	case STATUS_PASS:
@@ -174,12 +194,12 @@ func (formatter *BDDFormatter) PrintSuiteName(name string) {
 	fmt.Printf("\n%s:\n", formatter.Description)
 }
 
-func (formatter *BDDFormatter) PrintStatus(status byte, info *suiteInfo) {
+func (formatter *BDDFormatter) PrintStatus(status *Status, info *suiteInfo) {
 	shouldText := info.callerName
 	if strings.Contains(info.callerName, ".") {
 		shouldText = formatter.splitString(info.callerName, ".")
 	}
-	switch status {
+	switch status.Code {
 	case STATUS_FAIL:
 		fmt.Printf("- %s\n", red(shouldText))
 	case STATUS_PASS:
@@ -216,34 +236,21 @@ func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
 	return strings.TrimSpace(result)
 }
 
-func (s *Suite) SetT(t *testing.T)   { s.T = t }
-func (s *Suite) GetLastStatus() byte { return s.LastStatus }
-func (s *Suite) GetStatus() byte     { return s.Status }
-func (s *Suite) SetStatus(status byte) {
-	s.LastStatus, s.Status = status, status
-}
+func (s *Suite) SetT(t *testing.T)          { s.T = t }
+func (s *Suite) GetStatus() *Status         { return s.Status }
+func (s *Suite) SetStatus(status *Status)   { s.Status = status }
 func (s *Suite) GetCallerInfo() *callerInfo { return s.callerInfo }
 func (s *Suite) GetInfo() *suiteInfo        { return s.info[s.callerInfo.name] }
 func (s *Suite) Reset() {
 	s.info = make(map[string]*suiteInfo)
 }
 
-func (s *Suite) fail(exp, act interface{}, info *callerInfo) {
-	s.T.Errorf("Expected %v but got %v -- %s:%d\n", exp, act, info.fn, info.line)
-	s.Status, s.LastStatus = STATUS_FAIL, STATUS_FAIL
-}
-
-func (s *Suite) failWithCustomMsg(msg string, info *callerInfo) {
-	s.T.Errorf("%s -- %s:%d\n", msg, info.fn, info.line)
-	s.Status, s.LastStatus = STATUS_FAIL, STATUS_FAIL
-}
-
 func (s *Suite) setup() {
-	if s.LastStatus == STATUS_FAIL {
-		s.Status = STATUS_FAIL
+	if s.Status.LastCode == STATUS_FAIL {
+		s.Status.Code = STATUS_FAIL
 	}
-	if s.Status == STATUS_NO_ASSERTIONS {
-		s.Status = STATUS_PASS
+	if s.Status.Code == STATUS_NO_ASSERTIONS {
+		s.Status.Code = STATUS_PASS
 	}
 	s.callerInfo = newCallerInfo(3)
 	if _, present := s.info[s.callerInfo.name]; !present {
@@ -255,11 +262,13 @@ func (s *Suite) setup() {
 }
 
 // Equal asserts that the expected value equals the actual value.
-func (s *Suite) Equal(exp, act interface{}) {
+func (s *Suite) Equal(exp, act interface{}) bool {
 	s.setup()
 	if exp != act {
-		s.fail(exp, act, s.callerInfo)
+		s.Status.fail(exp, act, s.callerInfo)
+		return false
 	}
+	return true
 }
 
 // NotEqual asserts that the expected value is not equal to the actual
@@ -267,36 +276,41 @@ func (s *Suite) Equal(exp, act interface{}) {
 func (s *Suite) NotEqual(exp, act interface{}) {
 	s.setup()
 	if exp == act {
-		s.fail(exp, act, s.callerInfo)
+		s.Status.failWithCustomMsg(fmt.Sprintf("Expected %v to be not equal to %v", exp, act), s.callerInfo)
 	}
 }
 
 // True asserts that the value is true.
-func (s *Suite) True(value bool) {
+func (s *Suite) True(value bool) bool {
 	s.setup()
 	if !value {
-		s.fail("true", "false", s.callerInfo)
+		return s.Status.fail("true", "false", s.callerInfo)
 	}
+	return s.Status.pass()
 }
 
 // False asserts that the value is false.
-func (s *Suite) False(value bool) {
+func (s *Suite) False(value bool) bool {
 	s.setup()
 	if value {
-		s.fail("false", "true", s.callerInfo)
+		s.Status.fail("false", "true", s.callerInfo)
+		return false
 	}
+	s.Status.pass()
+	return true
 }
 
 // Path asserts that the given path exists.
-func (s *Suite) Path(path string) {
+func (s *Suite) Path(path string) bool {
 	s.setup()
 	if _, err := os.Stat(path); err != nil {
-		s.failWithCustomMsg(fmt.Sprintf("Path %s doesn't exist", path), s.callerInfo)
+		return s.Status.failWithCustomMsg(fmt.Sprintf("Path %s doesn't exist", path), s.callerInfo)
 	}
+	return s.Status.pass()
 }
 
 // Nil asserts that the value is nil.
-func (s *Suite) Nil(value interface{}) {
+func (s *Suite) Nil(value interface{}) bool {
 	s.setup()
 	reflectValue := reflect.ValueOf(value)
 	kind := reflectValue.Kind()
@@ -310,37 +324,45 @@ func (s *Suite) Nil(value interface{}) {
 		}
 	}
 	if !isNil {
-		s.failWithCustomMsg(fmt.Sprintf("Expected nil but got %v", value), s.callerInfo)
+		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected nil but got %v", value), s.callerInfo)
 	}
+	return s.Status.pass()
 }
 
 // NotNil asserts that the value is not nil.
-func (s *Suite) NotNil(value interface{}) {
+func (s *Suite) NotNil(value interface{}) bool {
 	s.setup()
 	reflectValue := reflect.ValueOf(value)
-	isNil := reflectValue.Kind() == 0
+	kind := reflectValue.Kind()
+	isNil := kind == 0
 	if !isNil {
-		isNil = reflectValue.IsNil()
+		canBeNil := kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface || kind == reflect.Map || kind == reflect.Ptr || kind == reflect.Slice
+		if canBeNil {
+			isNil = reflectValue.IsNil()
+		} else {
+			isNil = false
+		}
 	}
 	if isNil {
-		s.failWithCustomMsg(fmt.Sprintf("Expected not nil value but got %s", value), s.callerInfo)
+		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected not nil value but got %s", value), s.callerInfo)
 	}
+	return s.Status.pass()
 }
 
 // Pending marks the test function as pending.
 func (s *Suite) Pending() {
 	s.setup()
-	s.Status = STATUS_PENDING
+	s.Status.Code = STATUS_PENDING
 }
 
 // Failed checks if the last assertion has failed.
 func (s *Suite) Failed() bool {
-	return s.LastStatus == STATUS_FAIL
+	return s.Status.LastCode == STATUS_FAIL
 }
 
 // FailedTest checks if the test function has failed.
 func (s *Suite) FailedTest() bool {
-	return s.Status == STATUS_FAIL
+	return s.Status.Code == STATUS_FAIL
 }
 
 // Run runs the test suites.
@@ -406,7 +428,7 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 			if ok, _ := regexp.MatchString(*testToRun, method.Name); ok {
 				if ok, _ := regexp.MatchString(formatter.AllowedMethodsPattern(), method.Name); ok {
 
-					s.SetStatus(STATUS_NO_ASSERTIONS)
+					s.SetStatus(&Status{Code: STATUS_NO_ASSERTIONS})
 
 					if before.IsValid() {
 						before.Call([]reflect.Value{reflect.ValueOf(s)})
@@ -418,19 +440,23 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 						after.Call([]reflect.Value{reflect.ValueOf(s)})
 					}
 
-					status, info := s.GetStatus(), s.GetInfo()
+					var info *suiteInfo
+					status := s.GetStatus()
 
-					switch status {
+					switch status.Code {
 					case STATUS_PASS:
+						info = s.GetInfo()
 						totalPassed++
 					case STATUS_FAIL:
+						info = s.GetInfo()
+						t.Error(status.ErrorMessage)
 						totalFailed++
 					case STATUS_PENDING:
+						info = s.GetInfo()
 						info.assertions = 0
 						totalPending++
 					case STATUS_NO_ASSERTIONS:
-						info.callerName = method.Name
-						info.assertions = 0
+						info = &suiteInfo{0, method.Name}
 						totalNoAssertions++
 					}
 					formatter.PrintStatus(status, info)
