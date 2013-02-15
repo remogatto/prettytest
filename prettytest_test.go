@@ -49,6 +49,7 @@ func (suite *testSuite) TestEqualNotEqual() {
 	suite.Equal("foo", "foo")
 	suite.NotEqual("foo", "bar")
 	suite.False(suite.Equal("foo", "bar"))
+	suite.False(suite.NotEqual("foo", "foo"))
 }
 
 func (suite *testSuite) TestNil() {

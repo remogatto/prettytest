@@ -273,11 +273,12 @@ func (s *Suite) Equal(exp, act interface{}) bool {
 
 // NotEqual asserts that the expected value is not equal to the actual
 // value.
-func (s *Suite) NotEqual(exp, act interface{}) {
+func (s *Suite) NotEqual(exp, act interface{}) bool {
 	s.setup()
 	if exp == act {
-		s.Status.failWithCustomMsg(fmt.Sprintf("Expected %v to be not equal to %v", exp, act), s.callerInfo)
+		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected %v to be not equal to %v", exp, act), s.callerInfo)
 	}
+	return s.Status.pass()
 }
 
 // True asserts that the value is true.
