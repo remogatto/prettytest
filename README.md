@@ -48,6 +48,11 @@ func (t *testSuite) TestEquality() {
 	t.Equal("awesome", "awesome")
 }
 
+func (t *testSuite) TestComposition() {
+	t.False(t.Equal("awesome", "not good"))
+}
+
+
 //failing test
 func (t *testSuite) TestInequality() {
 	t.NotEqual("awesome", "awesome")
@@ -60,17 +65,18 @@ Then, to run the tests simply use the the go test command:
 $ go test
 
 testSuite:
-	OK		TestEquality		(1 assertion(s))
-	FAIL	TestInequality		(1 assertion(s))
-	OK		TestTrueIsTrue		(1 assertion(s))
+	OK	TestComposition               (2 assertion(s))
+	OK	TestEquality                  (1 assertion(s))
+	F	TestInequality                (1 assertion(s))
+	OK	TestTrueIsTrue                (1 assertion(s))
 
-3 tests, 2 passed, 1 failed, 0 pending
---- FAIL: TestFoo (0.00 seconds)
-prettytest.go:221: 	Expected awesome but got awesome -- /home/minhajuddin/s/gotest/foo_test.go:34
-		FAIL
+4 tests, 3 passed, 1 failed, 0 pending, 0 with no assertions
+--- FAIL: TestRunner (0.00 seconds)
+prettytest.go:453: 	Expected awesome to be not equal to awesome -- /home/andrea/src/sandbox/go/prettytest/example_test.go:39
+		
+FAIL
 exit status 1
-PASS
-
+FAIL	_/home/andrea/src/sandbox/go/prettytest	0.014s
 ~~~
 
 # PrettyAutoTest
