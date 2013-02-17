@@ -262,56 +262,68 @@ func (s *Suite) setup() {
 }
 
 // Equal asserts that the expected value equals the actual value.
-func (s *Suite) Equal(exp, act interface{}) bool {
+func (s *Suite) Equal(exp, act interface{}, message ...string) bool {
 	s.setup()
 	if exp != act {
-		s.Status.fail(exp, act, s.callerInfo)
-		return false
+		if len(message) > 0 {
+			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
+		}
+		return s.Status.fail(exp, act, s.callerInfo)
 	}
-	return true
+	return s.Status.pass()
 }
 
 // NotEqual asserts that the expected value is not equal to the actual
 // value.
-func (s *Suite) NotEqual(exp, act interface{}) bool {
+func (s *Suite) NotEqual(exp, act interface{}, message ...string) bool {
 	s.setup()
 	if exp == act {
+		if len(message) > 0 {
+			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
+		}
 		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected %v to be not equal to %v", exp, act), s.callerInfo)
 	}
 	return s.Status.pass()
 }
 
 // True asserts that the value is true.
-func (s *Suite) True(value bool) bool {
+func (s *Suite) True(value bool, message ...string) bool {
 	s.setup()
 	if !value {
+		if len(message) > 0 {
+			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
+		}
 		return s.Status.fail("true", "false", s.callerInfo)
 	}
 	return s.Status.pass()
 }
 
 // False asserts that the value is false.
-func (s *Suite) False(value bool) bool {
+func (s *Suite) False(value bool, message ...string) bool {
 	s.setup()
 	if value {
-		s.Status.fail("false", "true", s.callerInfo)
-		return false
+		if len(message) > 0 {
+			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
+		}
+		return s.Status.fail("false", "true", s.callerInfo)
 	}
-	s.Status.pass()
-	return true
+	return s.Status.pass()
 }
 
 // Path asserts that the given path exists.
-func (s *Suite) Path(path string) bool {
+func (s *Suite) Path(path string, message ...string) bool {
 	s.setup()
 	if _, err := os.Stat(path); err != nil {
+		if len(message) > 0 {
+			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
+		}
 		return s.Status.failWithCustomMsg(fmt.Sprintf("Path %s doesn't exist", path), s.callerInfo)
 	}
 	return s.Status.pass()
 }
 
 // Nil asserts that the value is nil.
-func (s *Suite) Nil(value interface{}) bool {
+func (s *Suite) Nil(value interface{}, message ...string) bool {
 	s.setup()
 	reflectValue := reflect.ValueOf(value)
 	kind := reflectValue.Kind()
@@ -325,13 +337,16 @@ func (s *Suite) Nil(value interface{}) bool {
 		}
 	}
 	if !isNil {
+		if len(message) > 0 {
+			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
+		}
 		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected nil but got %v", value), s.callerInfo)
 	}
 	return s.Status.pass()
 }
 
 // NotNil asserts that the value is not nil.
-func (s *Suite) NotNil(value interface{}) bool {
+func (s *Suite) NotNil(value interface{}, message ...string) bool {
 	s.setup()
 	reflectValue := reflect.ValueOf(value)
 	kind := reflectValue.Kind()
@@ -345,6 +360,9 @@ func (s *Suite) NotNil(value interface{}) bool {
 		}
 	}
 	if isNil {
+		if len(message) > 0 {
+			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
+		}
 		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected not nil value but got %s", value), s.callerInfo)
 	}
 	return s.Status.pass()

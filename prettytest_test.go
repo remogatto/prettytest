@@ -39,6 +39,10 @@ type bddFormatterSuite struct{ Suite }
 
 func (suite *testSuite) TestNoAssertions() {}
 
+func (suite *testSuite) TestFailMessage() {
+	suite.False(true, "This should fail with a custom error message")
+}
+
 func (suite *testSuite) TestTrueFalse() {
 	suite.True(true)
 	suite.False(false)
