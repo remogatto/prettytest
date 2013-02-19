@@ -30,12 +30,45 @@ to simplify/prettify testing in golang.
 
 It features:
 
-  * a simple assertion vocabulary for better readability
-  * customizable formatters through interfaces
-  * integrated with the go test command
-  * pretty and colorful output with reports
+* a simple assertion vocabulary for better readability
 
-See prettytest_test.go for an usage example.
+* customizable formatters through interfaces
+
+* before/after functions
+
+* integrated with the go test command
+
+* pretty and colorful output with reports
+
+This is the skeleton of a typical prettytest test file:
+
+    package foo
+
+    import (
+	"testing"
+	"github.com/remogatto/prettytest"
+    )
+
+    // Start of setup
+    type testSuite struct {
+	prettytest.Suite
+    }
+
+    func TestRunner(t *testing.T) {
+	prettytest.Run(
+		t,
+		new(testSuite),
+	)
+    }
+    // End of setup
+
+
+    // Tests start here
+    func (t *testSuite) TestTrueIsTrue() {
+	t.True(true)
+    }
+
+See example/example_test.go for a comprehensive usage example.
 
 */
 package prettytest
