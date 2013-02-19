@@ -25,8 +25,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 /*
 
-PrettyTest is a simple assertion testing library for golang. It aims
-to simplify/prettify testing in golang.
+PrettyTest is a simple testing library for golang. It aims to
+simplify/prettify testing in golang.
 
 It features:
 
@@ -68,7 +68,8 @@ This is the skeleton of a typical prettytest test file:
 	t.True(true)
     }
 
-See example/example_test.go for a comprehensive usage example.
+See example/example_test.go and prettytest_test.go for comprehensive
+usage examples.
 
 */
 package prettytest
