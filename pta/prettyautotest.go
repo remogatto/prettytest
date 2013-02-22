@@ -157,7 +157,7 @@ func matches(s, pattern string) bool {
 }
 
 func execGoTest(path string) {
-    cmd := exec.Command("go", "test")
+    cmd := exec.Command("go", "test", "./...")
     cmd.Dir = path
     out, err := cmd.CombinedOutput()
     if err != nil {
