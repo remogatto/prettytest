@@ -65,7 +65,7 @@ func (h *sigterm) HandleSignal(s os.Signal) {
                 application.Exit()
                 return
             }
-            application.Printf("Hit CTRL-C again to exit otherwise tests will be re-runned in %s.", RERUN_TIME)
+            application.Printf("Hit CTRL-C again to exit, otherwise tests will run again in %s.", RERUN_TIME)
             h.hitCounter++
             go func() {
                 time.Sleep(RERUN_TIME)
@@ -149,7 +149,7 @@ func (l *watcherLoop) Run() {
 }
 
 func usage() {
-    fmt.Fprintf(os.Stderr, "PrettyAutoTest continously watches for changes in folder and re-run the tests\n\n")
+    fmt.Fprintf(os.Stderr, "PrettyAutoTest continuously watches for changes in a folder and runs the tests\n\n")
     fmt.Fprintf(os.Stderr, "Usage:\n\n")
     fmt.Fprintf(os.Stderr, "\tprettyautotest [options]\n\n")
     fmt.Fprintf(os.Stderr, "Options are:\n\n")
