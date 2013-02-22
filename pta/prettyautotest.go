@@ -8,6 +8,7 @@ import (
     "log"
     "os"
     "os/exec"
+    "path/filepath"
     "regexp"
     "sync"
     "syscall"
@@ -98,11 +99,15 @@ func (l *watcherLoop) Run() {
     execGoTest(l.watchDir)
 
     watcher, err := fsnotify.NewWatcher()
-    err = watcher.Watch(l.watchDir)
-    if err != nil {
-        application.Fatal(err.Error())
+
+    for _, folder := range folders(l.watchDir) {
+        err = watcher.Watch(folder)
+        if err != nil {
+            application.Fatal(err.Error())
+        }
+        application.Printf("Start watching path %s", folder)
     }
-    application.Printf("Start watching path %s", l.watchDir)
+
     for {
         select {
         case <-l.pause:
@@ -170,12 +175,35 @@ func init() {
     events = make(map[string]*eventOnFile, 0)
 }
 
+// returns a slice of subfolders (recursive), including the folder passed in
+func folders(path string) (paths []string) {
+    filepath.Walk(path, func(newPath string, info os.FileInfo, err error) error {
+        if err != nil {
+            return err
+        }
+
+        if info.IsDir() {
+            name := info.Name()
+            // skip folders that begin with a dot
+            hidden := filepath.HasPrefix(name, ".") && name != "." && name != ".."
+            if hidden {
+                return filepath.SkipDir
+            } else {
+                paths = append(paths, newPath)
+            }
+        }
+        return nil
+    })
+    return paths
+}
+
 func main() {
     watchDir := flag.String("watchdir", "./", "Directory to watch for changes")
     verbose := flag.Bool("verbose", false, "Verbose mode")
     help := flag.Bool("help", false, "Show usage")
     flag.Usage = usage
     flag.Parse()
+
     application.Verbose = *verbose
     if *help {
         usage()
