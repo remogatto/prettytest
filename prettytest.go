@@ -262,12 +262,7 @@ func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
 	}
 
 	stringWithUnderscores := s[len(s)-1]
-	splittedByUnderscores := strings.Split(stringWithUnderscores, "_")
-
-	for _, v := range splittedByUnderscores {
-		result += v + " "
-	}
-	return strings.TrimSpace(result)
+	return strings.Replace(stringWithUnderscores, "_", " ", -1)
 }
 
 func (s *Suite) SetT(t *testing.T)          { s.T = t }
