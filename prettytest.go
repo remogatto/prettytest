@@ -261,13 +261,8 @@ func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
 		panic("Can't use BDD formatter!")
 	}
 
-	stringWithUnderscores := s[2]
-	splittedByUnderscores := strings.Split(stringWithUnderscores, "_")
-
-	for _, v := range splittedByUnderscores {
-		result += v + " "
-	}
-	return strings.TrimSpace(result)
+	stringWithUnderscores := s[len(s)-1]
+	return strings.Replace(stringWithUnderscores, "_", " ", -1)
 }
 
 func (s *Suite) SetT(t *testing.T)          { s.T = t }
