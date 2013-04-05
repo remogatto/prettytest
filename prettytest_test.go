@@ -27,6 +27,7 @@ package prettytest
 
 import (
 	"io/ioutil"
+	"launchpad.net/gocheck"
 	"os"
 	"testing"
 )
@@ -34,44 +35,53 @@ import (
 var state, beforeState, afterState, beforeAllState, afterAllState int
 
 type testSuite struct{ Suite }
+
 type beforeAfterSuite struct{ Suite }
 type bddFormatterSuite struct{ Suite }
 
 func (suite *testSuite) TestNoAssertions() {}
 
 func (suite *testSuite) TestFailMessage() {
-	suite.False(true, "This should fail with a custom error message")
+	suite.True(false)
+	suite.True(false, "This should fail with a custom error message")
+	suite.MustFail()
 }
 
-func (suite *testSuite) TestTrueFalse() {
+func (suite *testSuite) TestTrue() {
 	suite.True(true)
-	suite.False(false)
-	suite.True(suite.False(false))
 }
 
-func (suite *testSuite) TestEqualNotEqual() {
+func (suite *testSuite) TestError() {
+	suite.Error("This test should be marked as failed")
+	suite.MustFail()
+}
+
+func (suite *testSuite) TestNot() {
+	suite.Not(suite.Equal("foo", "bar"))
+	suite.Not(suite.True(false))
+}
+
+func (suite *testSuite) TestEqual() {
 	suite.Equal("foo", "foo")
-	suite.NotEqual("foo", "bar")
-	suite.False(suite.Equal("foo", "bar"))
-	suite.False(suite.NotEqual("foo", "foo"))
+}
+
+func (suite *testSuite) TestCheck() {
+	suite.Check("42", gocheck.Equals, "42")
+	suite.Check("42", gocheck.Equals, "43")
+	suite.MustFail()
 }
 
 func (suite *testSuite) TestNil() {
 	var v *int = nil
 	suite.Nil(v)
 	suite.Nil(nil)
-	suite.True(suite.Nil(nil))
-}
-
-func (suite *testSuite) TestNotNil() {
-	suite.NotNil([]byte{1, 2, 3})
-	suite.True(suite.NotNil(1))
+	suite.Not(suite.Nil([]byte{1, 2, 3}))
 }
 
 func (suite *testSuite) TestPath() {
-	ioutil.WriteFile("testfile", nil, 0600)
+	ioutil.WriteFile("./testfile", nil, 0600)
 	suite.Path("testfile")
-	suite.False(suite.Path("foo"))
+	suite.Not(suite.Path("foo"))
 }
 
 func (suite *testSuite) TestPending() {

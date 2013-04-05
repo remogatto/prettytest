@@ -1,35 +1,35 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+	"github.com/howeyc/fsnotify"
+	"github.com/remogatto/application"
+	"log"
+	"os"
 	"os/exec"
 	"regexp"
-	"os"
-	"fmt"
-	"log"
-	"flag"
-	"syscall"
 	"sync"
+	"syscall"
 	"time"
-	"github.com/remogatto/application"
-	"github.com/howeyc/fsnotify"
 )
 
 const (
 	// Multiple events that occur for the same file in this
 	// time windows will be discarded.
 	DISCARD_TIME = 1 * time.Second
-	RERUN_TIME = 2 * time.Second
+	RERUN_TIME   = 2 * time.Second
 )
 
 var (
-	events map[string]*eventOnFile
+	events  map[string]*eventOnFile
 	rwMutex sync.RWMutex
 )
 
 // eventOnFile stores informations about events occured on a file
 type eventOnFile struct {
 	fsnotifyEvent *fsnotify.FileEvent
-	time time.Time
+	time          time.Time
 }
 
 func addEvent(event *eventOnFile) *eventOnFile {
@@ -52,7 +52,7 @@ func getEvent(filename string) *eventOnFile {
 // sigterm is a type for handling a SIGTERM signal.
 type sigterm struct {
 	hitCounter byte
-	watchDir string
+	watchDir   string
 }
 
 func (h *sigterm) HandleSignal(s os.Signal) {
@@ -78,7 +78,7 @@ func (h *sigterm) HandleSignal(s os.Signal) {
 // watchLoop watches for changes in the folder
 type watcherLoop struct {
 	pause, terminate chan int
-	watchDir string
+	watchDir         string
 }
 
 func newWatcherLoop(watchDir string) *watcherLoop {
@@ -146,7 +146,7 @@ func (l *watcherLoop) Run() {
 func usage() {
 	fmt.Fprintf(os.Stderr, "PrettyAutoTest continously watches for changes in folder and re-run the tests\n\n")
 	fmt.Fprintf(os.Stderr, "Usage:\n\n")
- 	fmt.Fprintf(os.Stderr, "\tprettyautotest [options]\n\n")
+	fmt.Fprintf(os.Stderr, "\tprettyautotest [options]\n\n")
 	fmt.Fprintf(os.Stderr, "Options are:\n\n")
 	flag.PrintDefaults()
 }
@@ -172,7 +172,7 @@ func init() {
 
 func main() {
 	watchDir := flag.String("watchdir", "./", "Directory to watch for changes")
-	verbose  := flag.Bool("verbose", false, "Verbose mode")
+	verbose := flag.Bool("verbose", false, "Verbose mode")
 	help := flag.Bool("help", false, "Show usage")
 	flag.Usage = usage
 	flag.Parse()
@@ -187,4 +187,3 @@ func main() {
 	application.Run(exitCh)
 	<-exitCh
 }
-

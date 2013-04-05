@@ -77,6 +77,7 @@ package prettytest
 import (
 	"flag"
 	"fmt"
+	"launchpad.net/gocheck"
 	"os"
 	"reflect"
 	"regexp"
@@ -89,6 +90,7 @@ const (
 	STATUS_NO_ASSERTIONS = iota
 	STATUS_PASS
 	STATUS_FAIL
+	STATUS_MUST_FAIL
 	STATUS_PENDING
 )
 
@@ -96,6 +98,7 @@ const formatTag = "\t%s\t"
 
 var (
 	testToRun = flag.String("pt.run", "", "[prettytest] regular expression that filters tests and examples to run")
+	ErrorLog  []*Error
 )
 
 func green(text string) string {
@@ -112,10 +115,17 @@ func yellow(text string) string {
 
 var (
 	labelFAIL         = red("F")
+	labelMUSTFAIL     = green("EF")
 	labelPASS         = green("OK")
 	labelPENDING      = yellow("PE")
 	labelNOASSERTIONS = yellow("NA")
 )
+
+type Error struct {
+	Suite     *Suite
+	TestFunc  *TestFunc
+	Assertion *Assertion
+}
 
 type callerInfo struct {
 	name, fn string
@@ -127,325 +137,266 @@ func newCallerInfo(skip int) *callerInfo {
 	if !ok {
 		panic("An error occured while retrieving caller info!")
 	}
-	callerName := strings.Join(strings.Split(runtime.FuncForPC(pc).Name(), ".")[1:], ".")
+	splits := strings.Split(runtime.FuncForPC(pc).Name(), ".")
+	callerName := splits[len(splits)-1]
 	return &callerInfo{callerName, fn, line}
 }
 
-type TCatcher interface {
-	SetT(t *testing.T)
-	GetStatus() *Status
-	SetStatus(status *Status)
-	GetInfo() *suiteInfo
-	Reset()
+type tCatcher interface {
+	setT(t *testing.T)
+	suite() *Suite
+	setSuiteName(name string)
+	testFuncs() map[string]*TestFunc
+	init()
 }
 
-type suiteInfo struct {
-	assertions int
-	callerName string
+type Assertion struct {
+	Line         int
+	Name         string
+	Filename     string
+	ErrorMessage string
+	Passed       bool
+	suite        *Suite
+	testFunc     *TestFunc
 }
 
-type Status struct {
-	Code, LastCode byte
-	ErrorMessage   string
+func logError(error *Error) {
+	ErrorLog = append(ErrorLog, error)
 }
 
-func (status *Status) pass() bool {
-	status.Code, status.LastCode = STATUS_PASS, STATUS_PASS
-	return true
+func (assertion *Assertion) fail() {
+	assertion.Passed = false
+	assertion.testFunc.Status = STATUS_FAIL
+	logError(&Error{assertion.suite, assertion.testFunc, assertion})
 }
 
-func (status *Status) fail(exp, act interface{}, info *callerInfo) bool {
-	status.ErrorMessage = fmt.Sprintf("Expected %v but got %v -- %s:%d\n", exp, act, info.fn, info.line)
-	status.Code, status.LastCode = STATUS_FAIL, STATUS_FAIL
-	return false
-}
-
-func (status *Status) failWithCustomMsg(msg string, info *callerInfo) bool {
-	status.ErrorMessage = fmt.Sprintf("%s -- %s:%d\n", msg, info.fn, info.line)
-	status.Code, status.LastCode = STATUS_FAIL, STATUS_FAIL
-	return false
+type TestFunc struct {
+	Name, CallerName string
+	Status           int
+	Assertions       []*Assertion
+	suite            *Suite
+	mustFail         bool
 }
 
 type Suite struct {
-	T          *testing.T
-	Status     *Status
-	callerInfo *callerInfo
-	info       map[string]*suiteInfo
+	T         *testing.T
+	Name      string
+	TestFuncs map[string]*TestFunc
 }
 
-// Formatter is the interface each formatter should implement.
-type Formatter interface {
-	PrintSuiteName(name string)
-	PrintStatus(status *Status, info *suiteInfo)
-	PrintFinalReport(passed, failed, pending, noAssertions int)
-
-	// AllowedMethodPattern returns a regexp for the allowed
-	// method name (e.g. "^Test.*" for the TDDFormatter)
-	AllowedMethodsPattern() string
+func (s *Suite) setT(t *testing.T) { s.T = t }
+func (s *Suite) init() {
+	s.TestFuncs = make(map[string]*TestFunc)
 }
+func (s *Suite) suite() *Suite                   { return s }
+func (s *Suite) setSuiteName(name string)        { s.Name = name }
+func (s *Suite) testFuncs() map[string]*TestFunc { return s.TestFuncs }
 
-// TDDFormatter is a very simple TDD-like formatter.
-type TDDFormatter struct{}
-
-func (formatter *TDDFormatter) PrintSuiteName(name string) {
-	fmt.Printf("\n%s:\n", name)
-}
-
-func (formatter *TDDFormatter) PrintStatus(status *Status, info *suiteInfo) {
-	callerName := info.callerName
-	if strings.Contains(callerName, ".") {
-		t := strings.Split(callerName, ".")
-		callerName = t[len(t)-1]
+func (s *Suite) appendTestFuncFromMethod(method *callerInfo) *TestFunc {
+	if _, ok := s.TestFuncs[method.name]; !ok {
+		s.TestFuncs[method.name] = &TestFunc{Name: method.name, Status: STATUS_PASS, suite: s}
 	}
-	switch status.Code {
-	case STATUS_FAIL:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelFAIL, callerName, info.assertions)
-	case STATUS_PASS:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPASS, callerName, info.assertions)
-	case STATUS_PENDING:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelPENDING, callerName, info.assertions)
-	case STATUS_NO_ASSERTIONS:
-		fmt.Printf(formatTag+"%-30s(%d assertion(s))\n", labelNOASSERTIONS, callerName, info.assertions)
+	return s.TestFuncs[method.name]
+}
 
+func (s *Suite) currentTestFunc() *TestFunc {
+	callerName := newCallerInfo(3).name
+	_, ok := s.TestFuncs[callerName]
+	if !ok {
+		s.TestFuncs[callerName] = &TestFunc{
+			Name:   callerName,
+			Status: STATUS_NO_ASSERTIONS,
+		}
 	}
+	return s.TestFuncs[callerName]
 }
 
-func (formatter *TDDFormatter) PrintFinalReport(passed, failed, pending, noAssertions int) {
-	total := passed + failed + pending
-	fmt.Printf("\n%d tests, %d passed, %d failed, %d pending, %d with no assertions\n", total, passed, failed, pending, noAssertions)
-}
-
-func (formatter *TDDFormatter) AllowedMethodsPattern() string {
-	return "^Test.*"
-}
-
-// BDDFormatter is a formatter à la rspec.
-type BDDFormatter struct {
-	Description string
-}
-
-func (formatter *BDDFormatter) PrintSuiteName(name string) {
-	fmt.Printf("\n%s:\n", formatter.Description)
-}
-
-func (formatter *BDDFormatter) PrintStatus(status *Status, info *suiteInfo) {
-	shouldText := info.callerName
-	if strings.Contains(info.callerName, ".") {
-		shouldText = formatter.splitString(info.callerName, ".")
-	}
-	switch status.Code {
-	case STATUS_FAIL:
-		fmt.Printf("- %s\n", red(shouldText))
-	case STATUS_PASS:
-		fmt.Printf("- %s\n", green(shouldText))
-	case STATUS_PENDING:
-		fmt.Printf("- %s\t(Not Yet Implemented)\n", yellow(shouldText))
-	case STATUS_NO_ASSERTIONS:
-		fmt.Printf("- %s\t(No assertions found)\n", yellow(shouldText))
+func (testFunc *TestFunc) resetLastError() {
+	if len(ErrorLog) > 0 {
+		lastError := ErrorLog[len(ErrorLog)-1]
+		lastError.Assertion.Passed = true
+		ErrorLog = append(ErrorLog[:len(ErrorLog)-1])
+		testFunc.Status = STATUS_PASS
+		for i := 0; i < len(testFunc.Assertions); i++ {
+			if !testFunc.Assertions[i].Passed {
+				testFunc.Status = STATUS_FAIL
+			}
+		}
 	}
 }
 
-func (formatter *BDDFormatter) PrintFinalReport(passed, failed, pending, noAssertions int) {
-	total := passed + failed + pending + noAssertions
-	fmt.Printf("\n%d examples, %d passed, %d failed, %d pending, %d with no assertions\n", total, passed, failed, pending, noAssertions)
+func (testFunc *TestFunc) logError(message string) {
+	assertion := &Assertion{ErrorMessage: message}
+	error := &Error{testFunc.suite, testFunc, assertion}
+	logError(error)
 }
 
-func (formatter *BDDFormatter) AllowedMethodsPattern() string {
-	return "^Should_.*"
+func (testFunc *TestFunc) appendAssertion(assertion *Assertion) *Assertion {
+	testFunc.Assertions = append(testFunc.Assertions, assertion)
+	return assertion
 }
 
-func (formatter *BDDFormatter) splitString(text, sep string) (result string) {
-	s := strings.Split(text, sep)
-
-	if len(s) < 2 {
-		panic("Can't use BDD formatter!")
-	}
-
-	stringWithUnderscores := s[2]
-	splittedByUnderscores := strings.Split(stringWithUnderscores, "_")
-
-	for _, v := range splittedByUnderscores {
-		result += v + " "
-	}
-	return strings.TrimSpace(result)
+func (testFunc *TestFunc) status() int {
+	return testFunc.Status
 }
 
-func (s *Suite) SetT(t *testing.T)          { s.T = t }
-func (s *Suite) GetStatus() *Status         { return s.Status }
-func (s *Suite) SetStatus(status *Status)   { s.Status = status }
-func (s *Suite) GetCallerInfo() *callerInfo { return s.callerInfo }
-func (s *Suite) GetInfo() *suiteInfo        { return s.info[s.callerInfo.name] }
-func (s *Suite) Reset() {
-	s.info = make(map[string]*suiteInfo)
+func (s *Suite) setup(errorMessage string, customMessages []string) *Assertion {
+	var message string
+	if len(customMessages) > 0 {
+		message = strings.Join(customMessages, "\t\t\n")
+	} else {
+		message = errorMessage
+	}
+	// Retrieve the testing method
+	callerInfo := newCallerInfo(3)
+	assertionName := newCallerInfo(2).name
+	testFunc := s.appendTestFuncFromMethod(callerInfo)
+	assertion := &Assertion{
+		Line:         callerInfo.line,
+		Filename:     callerInfo.fn,
+		Name:         assertionName,
+		suite:        s,
+		testFunc:     testFunc,
+		ErrorMessage: message,
+		Passed:       true,
+	}
+	testFunc.appendAssertion(assertion)
+	return assertion
 }
 
-func (s *Suite) setup() {
-	if s.Status.LastCode == STATUS_FAIL {
-		s.Status.Code = STATUS_FAIL
+func (s *Suite) Check(obtained interface{}, checker gocheck.Checker, args ...interface{}) bool {
+	assertion := s.setup("", []string{})
+	checkerInfo := checker.Info()
+	params := make([]interface{}, len(args)+1)
+	params[0] = obtained
+	copy(params[1:], args)
+	result, _ := checker.Check(params, []string{})
+	if !result {
+		errorMsg := fmt.Sprintf("%s checker failed: ", checkerInfo.Name)
+		for i, param := range checkerInfo.Params {
+			errorMsg += fmt.Sprintf("%s %v ", param, params[i])
+		}
+		assertion.ErrorMessage = errorMsg
+		assertion.fail()
+	} else {
+		assertion.Passed = true
 	}
-	if s.Status.Code == STATUS_NO_ASSERTIONS {
-		s.Status.Code = STATUS_PASS
-	}
-	s.callerInfo = newCallerInfo(3)
-	if _, present := s.info[s.callerInfo.name]; !present {
-		s.info[s.callerInfo.name] = new(suiteInfo)
+	return assertion.Passed
+}
 
+func (s *Suite) Not(result bool, messages ...string) bool {
+	assertion := s.setup(fmt.Sprintf("Expected assertion to fail"), messages)
+	if result {
+		assertion.fail()
+	} else {
+		assertion.testFunc.resetLastError()
 	}
-	s.info[s.callerInfo.name].callerName = s.callerInfo.name
-	s.info[s.callerInfo.name].assertions++
+	return assertion.Passed
 }
 
 // Equal asserts that the expected value equals the actual value.
-func (s *Suite) Equal(exp, act interface{}, message ...string) bool {
-	s.setup()
+func (s *Suite) Equal(exp, act interface{}, messages ...string) bool {
+	assertion := s.setup(fmt.Sprintf("Expected %v to be equal to %v", act, exp), messages)
 	if exp != act {
-		if len(message) > 0 {
-			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
-		}
-		return s.Status.fail(exp, act, s.callerInfo)
+		assertion.fail()
 	}
-	return s.Status.pass()
-}
-
-// NotEqual asserts that the expected value is not equal to the actual
-// value.
-func (s *Suite) NotEqual(exp, act interface{}, message ...string) bool {
-	s.setup()
-	if exp == act {
-		if len(message) > 0 {
-			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
-		}
-		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected %v to be not equal to %v", exp, act), s.callerInfo)
-	}
-	return s.Status.pass()
+	return assertion.Passed
 }
 
 // True asserts that the value is true.
-func (s *Suite) True(value bool, message ...string) bool {
-	s.setup()
+func (s *Suite) True(value bool, messages ...string) bool {
+	assertion := s.setup(fmt.Sprintf("Expected value to be true"), messages)
 	if !value {
-		if len(message) > 0 {
-			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
-		}
-		return s.Status.fail("true", "false", s.callerInfo)
+		assertion.fail()
 	}
-	return s.Status.pass()
-}
-
-// False asserts that the value is false.
-func (s *Suite) False(value bool, message ...string) bool {
-	s.setup()
-	if value {
-		if len(message) > 0 {
-			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
-		}
-		return s.Status.fail("false", "true", s.callerInfo)
-	}
-	return s.Status.pass()
+	return assertion.Passed
 }
 
 // Path asserts that the given path exists.
-func (s *Suite) Path(path string, message ...string) bool {
-	s.setup()
+func (s *Suite) Path(path string, messages ...string) bool {
+	assertion := s.setup(fmt.Sprintf("Path %s doesn't exist", path), messages)
 	if _, err := os.Stat(path); err != nil {
-		if len(message) > 0 {
-			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
-		}
-		return s.Status.failWithCustomMsg(fmt.Sprintf("Path %s doesn't exist", path), s.callerInfo)
+		assertion.fail()
 	}
-	return s.Status.pass()
+	return assertion.Passed
 }
 
 // Nil asserts that the value is nil.
-func (s *Suite) Nil(value interface{}, message ...string) bool {
-	s.setup()
-	reflectValue := reflect.ValueOf(value)
-	kind := reflectValue.Kind()
-	isNil := kind == 0
-	if !isNil {
-		canBeNil := kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface || kind == reflect.Map || kind == reflect.Ptr || kind == reflect.Slice
-		if canBeNil {
-			isNil = reflectValue.IsNil()
-		} else {
-			isNil = false
+func (s *Suite) Nil(value interface{}, messages ...string) bool {
+	assertion := s.setup(fmt.Sprintf("Value %v is not nil", value), messages)
+	if value == nil {
+		return true
+	}
+	switch v := reflect.ValueOf(value); v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		if !v.IsNil() {
+			assertion.fail()
 		}
 	}
-	if !isNil {
-		if len(message) > 0 {
-			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
-		}
-		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected nil but got %v", value), s.callerInfo)
-	}
-	return s.Status.pass()
+	return assertion.Passed
 }
 
-// NotNil asserts that the value is not nil.
-func (s *Suite) NotNil(value interface{}, message ...string) bool {
-	s.setup()
-	reflectValue := reflect.ValueOf(value)
-	kind := reflectValue.Kind()
-	isNil := kind == 0
-	if !isNil {
-		canBeNil := kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface || kind == reflect.Map || kind == reflect.Ptr || kind == reflect.Slice
-		if canBeNil {
-			isNil = reflectValue.IsNil()
-		} else {
-			isNil = false
-		}
-	}
-	if isNil {
-		if len(message) > 0 {
-			return s.Status.failWithCustomMsg(message[0], s.callerInfo)
-		}
-		return s.Status.failWithCustomMsg(fmt.Sprintf("Expected not nil value but got %s", value), s.callerInfo)
-	}
-	return s.Status.pass()
+// Error logs an error and marks the test function as failed.
+func (s *Suite) Error(args ...interface{}) {
+	assertion := s.setup("", []string{})
+	assertion.testFunc.Status = STATUS_FAIL
+	assertion.ErrorMessage = fmt.Sprint(args...)
+	assertion.fail()
 }
 
 // Pending marks the test function as pending.
 func (s *Suite) Pending() {
-	s.setup()
-	s.Status.Code = STATUS_PENDING
+	s.currentTestFunc().Status = STATUS_PENDING
 }
 
-// Failed checks if the last assertion has failed.
-func (s *Suite) Failed() bool {
-	return s.Status.LastCode == STATUS_FAIL
+func (s *Suite) MustFail() {
+	s.currentTestFunc().mustFail = true
 }
 
-// FailedTest checks if the test function has failed.
-func (s *Suite) FailedTest() bool {
-	return s.Status.Code == STATUS_FAIL
-}
+// // Fail marks the test as failed
+// func (s *Suite) Fail() {
+// 	s.Status.Code = STATUS_FAIL
+// }
+
+// // Failed checks if the last assertion has failed.
+// func (s *Suite) Failed() bool {
+// 	return s.Status.LastCode == STATUS_FAIL
+// }
+
+// // FailedTest checks if the test function has failed.
+// func (s *Suite) FailedTest() bool {
+// 	return s.Status.Code == STATUS_FAIL
+// }
 
 // Run runs the test suites.
-func Run(t *testing.T, suites ...TCatcher) {
+func Run(t *testing.T, suites ...tCatcher) {
 	run(t, new(TDDFormatter), suites...)
 }
 
 // Run runs the test suites using the given formatter.
-func RunWithFormatter(t *testing.T, formatter Formatter, suites ...TCatcher) {
+func RunWithFormatter(t *testing.T, formatter Formatter, suites ...tCatcher) {
 	run(t, formatter, suites...)
 }
 
 // Run tests. Use default formatter.
-func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
+func run(t *testing.T, formatter Formatter, suites ...tCatcher) {
 	var (
-		beforeAllFound, afterAllFound                             bool
-		beforeAll, afterAll, before, after                        reflect.Value
-		totalPassed, totalFailed, totalPending, totalNoAssertions int
+		beforeAllFound, afterAllFound                                                    bool
+		beforeAll, afterAll, before, after                                               reflect.Value
+		totalPassed, totalFailed, totalPending, totalNoAssertions, totalExpectedFailures int
 	)
 
 	flag.Parse()
 
 	for _, s := range suites {
 		beforeAll, afterAll, before, after = reflect.Value{}, reflect.Value{}, reflect.Value{}, reflect.Value{}
-		s.SetT(t)
-		s.Reset()
+		s.setT(t)
+		s.init()
 
 		iType := reflect.TypeOf(s)
 
-		formatter.PrintSuiteName(strings.Split(iType.String(), ".")[1])
+		s.setSuiteName(strings.Split(iType.String(), ".")[1])
+		formatter.PrintSuiteInfo(s.suite())
 
 		// search for Before and After methods
 		for i := 0; i < iType.NumMethod(); i++ {
@@ -480,9 +431,6 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 			method := iType.Method(i)
 			if ok, _ := regexp.MatchString(*testToRun, method.Name); ok {
 				if ok, _ := regexp.MatchString(formatter.AllowedMethodsPattern(), method.Name); ok {
-
-					s.SetStatus(&Status{Code: STATUS_NO_ASSERTIONS})
-
 					if before.IsValid() {
 						before.Call([]reflect.Value{reflect.ValueOf(s)})
 					}
@@ -493,27 +441,36 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 						after.Call([]reflect.Value{reflect.ValueOf(s)})
 					}
 
-					var info *suiteInfo
-					status := s.GetStatus()
+					testFunc, ok := s.testFuncs()[method.Name]
+					if !ok {
+						testFunc = &TestFunc{Name: method.Name, Status: STATUS_NO_ASSERTIONS}
+					}
 
-					switch status.Code {
+					if testFunc.mustFail {
+						if testFunc.Status != STATUS_FAIL {
+							testFunc.Status = STATUS_FAIL
+							testFunc.logError("The test was expected to fail")
+						} else {
+							testFunc.Status = STATUS_MUST_FAIL
+						}
+					}
+
+					switch testFunc.Status {
 					case STATUS_PASS:
-						info = s.GetInfo()
 						totalPassed++
 					case STATUS_FAIL:
-						info = s.GetInfo()
-						t.Error(status.ErrorMessage)
 						totalFailed++
+						t.Fail()
+					case STATUS_MUST_FAIL:
+						totalExpectedFailures++
 					case STATUS_PENDING:
-						info = s.GetInfo()
-						info.assertions = 0
 						totalPending++
 					case STATUS_NO_ASSERTIONS:
-						info = &suiteInfo{0, method.Name}
 						totalNoAssertions++
 					}
-					formatter.PrintStatus(status, info)
+					formatter.PrintStatus(testFunc)
 				}
+
 			}
 
 		}
@@ -522,6 +479,15 @@ func run(t *testing.T, formatter Formatter, suites ...TCatcher) {
 			afterAll.Call([]reflect.Value{reflect.ValueOf(s)})
 		}
 	}
+	formatter.PrintErrorLog(ErrorLog)
+	formatter.PrintFinalReport(&FinalReport{Passed: totalPassed,
+		Failed:           totalFailed,
+		Pending:          totalPending,
+		ExpectedFailures: totalExpectedFailures,
+		NoAssertions:     totalNoAssertions,
+	})
+}
 
-	formatter.PrintFinalReport(totalPassed, totalFailed, totalPending, totalNoAssertions)
+func init() {
+	ErrorLog = make([]*Error, 0)
 }
