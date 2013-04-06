@@ -6,6 +6,7 @@ import (
 )
 
 // Start of setup
+
 type testSuite struct {
 	prettytest.Suite
 }
@@ -16,10 +17,12 @@ func TestRunner(t *testing.T) {
 		new(testSuite),
 	)
 }
+
 // End of setup
 
 
 // Your tests start here
+
 func (t *testSuite) TestTrueIsTrue() {
 	t.True(true)
 }
@@ -28,16 +31,18 @@ func (t *testSuite) TestEquality() {
 	t.Equal("awesome", "awesome")
 }
 
-func (t *testSuite) TestComposition() {
-	t.False(t.Path("foo"))
+func (t *testSuite) TestNot() {
+	t.Not(t.Path("foo"))
 }
 
-func (t *testSuite) TestTestingDelegation() {
-	t.T.Error("Error")
-	t.True(t.T.Failed())
+// Failing tests
+
+func (t *testSuite) TestMustFail() {
+	t.Error("This test must fail.")
+	t.MustFail()
 }
 
-//failing test
 func (t *testSuite) TestInequality() {
-	t.NotEqual("awesome", "awesome")
+	t.Equal("awesome", "ugly")
+	t.MustFail()
 }

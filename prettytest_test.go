@@ -68,6 +68,7 @@ func (suite *testSuite) TestEqual() {
 func (suite *testSuite) TestCheck() {
 	suite.Check("42", gocheck.Equals, "42")
 	suite.Check("42", gocheck.Equals, "43")
+	suite.Check("notnil", gocheck.IsNil, "custom error")
 	suite.MustFail()
 }
 
