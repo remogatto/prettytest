@@ -12,6 +12,7 @@ PrettyTest main features are:
   * A simple assertion vocabulary for better readability
   * Customizable formatters through interfaces
   * It's integrated with the go test command
+  * It can use [gocheck](http://labix.org/gocheck) checkers (experimental)
   * It has pretty and colorful output with reports
 
 # Quick start
@@ -48,14 +49,15 @@ func (t *testSuite) TestEquality() {
 	t.Equal("awesome", "awesome")
 }
 
-func (t *testSuite) TestComposition() {
-	t.False(t.Equal("awesome", "not good"))
+func (t *testSuite) TestNegation() {
+	t.Not(t.Equal("awesome", "not good"))
 }
 
 
 //failing test
+
 func (t *testSuite) TestInequality() {
-	t.NotEqual("awesome", "awesome")
+	t.Equal("awesome", "pretty")
 }
 ~~~
 
@@ -83,7 +85,9 @@ FAIL	_/home/andrea/src/sandbox/go/prettytest	0.014s
 
 PrettyAutoTest is a command that continously watches for changes in
 your source directory and - in case - re-executes the
-tests. PrettyAutoTest promotes an agile development approach: write tests, write the implementation that satisfies the tests, have an immediate visual feedback about your progress.
+tests. PrettyAutoTest promotes an agile development approach: write
+tests, write the implementation that satisfies the tests, have an
+immediate visual feedback about your progress.
 
 Check this video: http://youtu.be/B35N6q3sveQ
 
@@ -104,7 +108,7 @@ Type <tt>pta -h</tt> for additional help.
 
 # LICENSE
 
-Copyright (c) 2010 Andrea Fazzi
+Copyright (c) 2013 Andrea Fazzi
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
