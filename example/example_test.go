@@ -3,6 +3,7 @@ package example
 import (
 	"testing"
 	"github.com/remogatto/prettytest"
+	"launchpad.net/gocheck"
 )
 
 // Start of setup
@@ -33,6 +34,10 @@ func (t *testSuite) TestEquality() {
 
 func (t *testSuite) TestNot() {
 	t.Not(t.Path("foo"))
+}
+
+func (t *testSuite) TestGoCheck() {
+	t.Check("foo", gocheck.Equals, "foo")
 }
 
 // Failing tests

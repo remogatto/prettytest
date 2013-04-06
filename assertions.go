@@ -2,9 +2,9 @@ package prettytest
 
 import (
 	"fmt"
-	"launchpad.net/gocheck"
 	"os"
 	"reflect"
+	"launchpad.net/gocheck"
 )
 
 type Assertion struct {
@@ -23,6 +23,15 @@ func (assertion *Assertion) fail() {
 	logError(&Error{assertion.suite, assertion.testFunc, assertion})
 }
 
+// Check wraps gocheck.Check method.
+// It verifies if the first value matches with the expected value.
+// What matching means is defined by the provided checker. In case
+// they do not match, an error will be logged, the test will be marked
+// as failed, and the test execution will continue.  Some checkers may
+// not need the expected argument (e.g. IsNil).  In either case, any
+// extra arguments provided to the function will be logged next to the
+// reported problem when the matching fails.  This is a handy way to
+// provide problem-specific hints. (taken from gocheck doc)
 func (s *Suite) Check(obtained interface{}, checker gocheck.Checker, args ...interface{}) bool {
 	assertion := s.setup("", []string{})
 	checkerInfo := checker.Info()
@@ -43,6 +52,7 @@ func (s *Suite) Check(obtained interface{}, checker gocheck.Checker, args ...int
 	return assertion.Passed
 }
 
+// Not asserts the given assertion is false.
 func (s *Suite) Not(result bool, messages ...string) bool {
 	assertion := s.setup(fmt.Sprintf("Expected assertion to fail"), messages)
 	if result {
@@ -108,21 +118,12 @@ func (s *Suite) Pending() {
 	s.currentTestFunc().Status = STATUS_PENDING
 }
 
+// MustFail marks the current test function as an expected failure.
 func (s *Suite) MustFail() {
 	s.currentTestFunc().mustFail = true
 }
 
-// // Fail marks the test as failed
-// func (s *Suite) Fail() {
-// 	s.Status.Code = STATUS_FAIL
-// }
-
-// // Failed checks if the last assertion has failed.
-// func (s *Suite) Failed() bool {
-// 	return s.Status.LastCode == STATUS_FAIL
-// }
-
-// // FailedTest checks if the test function has failed.
-// func (s *Suite) FailedTest() bool {
-// 	return s.Status.Code == STATUS_FAIL
-// }
+// Failed checks if the test function has failed.
+func (s *Suite) Failed() bool {
+	return s.currentTestFunc().Status == STATUS_FAIL
+}
