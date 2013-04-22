@@ -49,6 +49,7 @@ func (suite *testSuite) TestFailMessage() {
 
 func (suite *testSuite) TestTrue() {
 	suite.True(true)
+	suite.Not(suite.True(false))
 }
 
 func (suite *testSuite) TestError() {
@@ -59,6 +60,11 @@ func (suite *testSuite) TestError() {
 func (suite *testSuite) TestNot() {
 	suite.Not(suite.Equal("foo", "bar"))
 	suite.Not(suite.True(false))
+}
+
+func (suite *testSuite) TestFalse() {
+	suite.False(false)
+	suite.Not(suite.False(true))
 }
 
 func (suite *testSuite) TestEqual() {
