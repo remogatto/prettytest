@@ -2,9 +2,9 @@ package prettytest
 
 import (
 	"fmt"
+	"launchpad.net/gocheck"
 	"os"
 	"reflect"
-	"launchpad.net/gocheck"
 )
 
 type Assertion struct {
@@ -32,7 +32,7 @@ func (assertion *Assertion) fail() {
 // extra arguments provided to the function will be logged next to the
 // reported problem when the matching fails.  This is a handy way to
 // provide problem-specific hints. (taken from gocheck doc)
-func (s *Suite) Check(obtained interface{}, checker gocheck.Checker, args ...interface{}) bool {
+func (s *Suite) Check(obtained interface{}, checker gocheck.Checker, args ...interface{}) *Assertion {
 	assertion := s.setup("", []string{})
 	checkerInfo := checker.Info()
 	params := make([]interface{}, len(args)+1)
@@ -49,52 +49,62 @@ func (s *Suite) Check(obtained interface{}, checker gocheck.Checker, args ...int
 	} else {
 		assertion.Passed = true
 	}
-	return assertion.Passed
+	return assertion
 }
 
 // Not asserts the given assertion is false.
-func (s *Suite) Not(result bool, messages ...string) bool {
+func (s *Suite) Not(result *Assertion, messages ...string) *Assertion {
 	assertion := s.setup(fmt.Sprintf("Expected assertion to fail"), messages)
-	if result {
+	if result.Passed {
 		assertion.fail()
 	} else {
+		result.Passed = true
 		assertion.testFunc.resetLastError()
 	}
-	return assertion.Passed
+	return assertion
+}
+
+// Not asserts the given assertion is false.
+func (s *Suite) False(value bool, messages ...string) *Assertion {
+	assertion := s.setup(fmt.Sprintf("Expected value to be false"), messages)
+	if value {
+		assertion.fail()
+	}
+	return assertion
 }
 
 // Equal asserts that the expected value equals the actual value.
-func (s *Suite) Equal(exp, act interface{}, messages ...string) bool {
+func (s *Suite) Equal(exp, act interface{}, messages ...string) *Assertion {
 	assertion := s.setup(fmt.Sprintf("Expected %v to be equal to %v", act, exp), messages)
 	if exp != act {
 		assertion.fail()
 	}
-	return assertion.Passed
+	return assertion
 }
 
 // True asserts that the value is true.
-func (s *Suite) True(value bool, messages ...string) bool {
+func (s *Suite) True(value bool, messages ...string) *Assertion {
 	assertion := s.setup(fmt.Sprintf("Expected value to be true"), messages)
 	if !value {
 		assertion.fail()
 	}
-	return assertion.Passed
+	return assertion
 }
 
 // Path asserts that the given path exists.
-func (s *Suite) Path(path string, messages ...string) bool {
+func (s *Suite) Path(path string, messages ...string) *Assertion {
 	assertion := s.setup(fmt.Sprintf("Path %s doesn't exist", path), messages)
 	if _, err := os.Stat(path); err != nil {
 		assertion.fail()
 	}
-	return assertion.Passed
+	return assertion
 }
 
 // Nil asserts that the value is nil.
-func (s *Suite) Nil(value interface{}, messages ...string) bool {
+func (s *Suite) Nil(value interface{}, messages ...string) *Assertion {
 	assertion := s.setup(fmt.Sprintf("Value %v is not nil", value), messages)
 	if value == nil {
-		return true
+		return assertion
 	}
 	switch v := reflect.ValueOf(value); v.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
@@ -102,7 +112,7 @@ func (s *Suite) Nil(value interface{}, messages ...string) bool {
 			assertion.fail()
 		}
 	}
-	return assertion.Passed
+	return assertion
 }
 
 // Error logs an error and marks the test function as failed.
