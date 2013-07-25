@@ -3,7 +3,7 @@
 PrettyTest is a simple testing library without bells & whistles that
 produces pretty outputs.
 
-![PrettyTest](http://remogatto.github.com/images/prettytest.png)
+![PrettyTest](http://remogatto.github.io/images/prettytest.png)
 
 # Features
 
