@@ -26,7 +26,20 @@ type Formatter interface {
 	AllowedMethodsPattern() string
 }
 
-// TDDFormatter is a very simple TDD-like formatter.
+/*TDDFormatter is a very simple TDD-like formatter.
+
+Legend:
+
+* F  - Test Failed
+
+* OK - Test Passed
+
+* EF - An Expected Failure occured
+
+* NA - Not Assertions found
+
+* PE - Pending test
+*/
 type TDDFormatter struct{}
 
 func (formatter *TDDFormatter) PrintSuiteInfo(suite *Suite) {

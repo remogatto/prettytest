@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sync"
 	"syscall"
@@ -52,7 +53,7 @@ func getEvent(filename string) *eventOnFile {
 // sigterm is a type for handling a SIGTERM signal.
 type sigterm struct {
 	hitCounter byte
-	watchDir   string
+	paths   []string
 }
 
 func (h *sigterm) HandleSignal(s os.Signal) {
@@ -64,11 +65,11 @@ func (h *sigterm) HandleSignal(s os.Signal) {
 				application.Exit()
 				return
 			}
-			application.Printf("Hit CTRL-C again to exit otherwise tests will be re-runned in %s.", RERUN_TIME)
+			application.Printf("Hit CTRL-C again to exit, otherwise tests will run again in %s.", RERUN_TIME)
 			h.hitCounter++
 			go func() {
 				time.Sleep(RERUN_TIME)
-				execGoTest(h.watchDir)
+				execGoTest(h.paths)
 				h.hitCounter = 0
 			}()
 		}
@@ -78,11 +79,12 @@ func (h *sigterm) HandleSignal(s os.Signal) {
 // watchLoop watches for changes in the folder
 type watcherLoop struct {
 	pause, terminate chan int
-	watchDir         string
+	initialPath string
+	paths         []string
 }
 
-func newWatcherLoop(watchDir string) *watcherLoop {
-	return &watcherLoop{make(chan int), make(chan int), watchDir}
+func newWatcherLoop(initialPath string) *watcherLoop {
+	return &watcherLoop{make(chan int), make(chan int), initialPath, folders(initialPath)}
 }
 
 func (l *watcherLoop) Pause() chan int {
@@ -95,14 +97,18 @@ func (l *watcherLoop) Terminate() chan int {
 
 func (l *watcherLoop) Run() {
 	// Run the tests for the first time.
-	execGoTest(l.watchDir)
+	execGoTest(l.paths)
 
 	watcher, err := fsnotify.NewWatcher()
-	err = watcher.Watch(l.watchDir)
-	if err != nil {
-		application.Fatal(err.Error())
+
+	for _, path := range l.paths {
+		err = watcher.Watch(path)
+		if err != nil {
+			application.Fatal(err.Error())
+		}
+		application.Printf("Start watching path %s", path)
 	}
-	application.Printf("Start watching path %s", l.watchDir)
+
 	for {
 		select {
 		case <-l.pause:
@@ -125,11 +131,11 @@ func (l *watcherLoop) Run() {
 					if event == nil {
 						event = addEvent(&eventOnFile{ev, time.Now()})
 						application.Logf("Run the tests")
-						execGoTest(l.watchDir)
+						execGoTest(l.paths)
 					} else if time.Now().Sub(event.time) > DISCARD_TIME {
 						event.time = time.Now()
 						application.Logf("Run the tests")
-						execGoTest(l.watchDir)
+						execGoTest(l.paths)
 					} else {
 						if application.Verbose {
 							application.Logf("Event %s was discarded for file %s", ev, ev.Name)
@@ -156,33 +162,67 @@ func matches(s, pattern string) bool {
 	return regexp.MustCompile(pattern).MatchString(s)
 }
 
-func execGoTest(path string) {
-	cmd := exec.Command("go", "test")
-	cmd.Dir = path
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Println(err)
+func execGoTest(paths []string) {
+	for _, path := range paths {
+		cmd := exec.Command("go", "test")
+		cmd.Dir = path
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Println(err)
+		}
+		fmt.Print(string(out))
 	}
-	fmt.Print(string(out))
 }
 
 func init() {
 	events = make(map[string]*eventOnFile, 0)
 }
 
+// Returns a slice of subfolders (recursive), including the folder passed in
+func folders(path string) (paths []string) {
+	filepath.Walk(path, func(newPath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			name := info.Name()
+			// skip folders that begin with a dot
+			hidden := filepath.HasPrefix(name, ".") && name != "." && name != ".."
+			if hidden {
+				return filepath.SkipDir
+			} else {
+				paths = append(paths, newPath)
+			}
+		}
+		return nil
+	})
+	return paths
+}
+
 func main() {
-	watchDir := flag.String("watchdir", "./", "Directory to watch for changes")
 	verbose := flag.Bool("verbose", false, "Verbose mode")
 	help := flag.Bool("help", false, "Show usage")
 	flag.Usage = usage
 	flag.Parse()
+
+	initialPath := flag.Arg(0)
+	if initialPath == "" {
+		initialPath = "./"
+	}
+
+	if _, err := os.Stat(initialPath); err != nil {
+		application.Fatal(err.Error())
+	}
+
 	application.Verbose = *verbose
 	if *help {
 		usage()
 		return
 	}
-	application.Register("Watcher Loop", newWatcherLoop(*watchDir))
-	application.InstallSignalHandler(&sigterm{watchDir: *watchDir})
+	watcherLoop := newWatcherLoop(initialPath)
+	application.Register("Watcher Loop", watcherLoop)
+	application.InstallSignalHandler(&sigterm{paths: watcherLoop.paths})
 	exitCh := make(chan bool)
 	application.Run(exitCh)
 	<-exitCh

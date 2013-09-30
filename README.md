@@ -81,6 +81,14 @@ exit status 1
 FAIL	_/home/andrea/src/sandbox/go/prettytest	0.014s
 ~~~
 
+# TDD formatter legend
+
+* F  - Test Failed
+* OK - Test Passed
+* EF - An Expected Failure occured
+* NA - Not Assertions found
+* PE - Pending test
+
 # PrettyAutoTest
 
 PrettyAutoTest is a command that continously watches for changes in
