@@ -138,6 +138,7 @@ func newCallerInfo(skip int) *callerInfo {
 type tCatcher interface {
 	setT(t *testing.T)
 	suite() *Suite
+	setPackageName(name string)
 	setSuiteName(name string)
 	testFuncs() map[string]*TestFunc
 	init()
@@ -157,13 +158,14 @@ type TestFunc struct {
 
 type Suite struct {
 	T         *testing.T
-	Name      string
+	Package, Name      string
 	TestFuncs map[string]*TestFunc
 }
 
 func (s *Suite) setT(t *testing.T)               { s.T = t }
 func (s *Suite) init()                           { s.TestFuncs = make(map[string]*TestFunc) }
 func (s *Suite) suite() *Suite                   { return s }
+func (s *Suite) setPackageName(name string)        { s.Package = name }
 func (s *Suite) setSuiteName(name string)        { s.Name = name }
 func (s *Suite) testFuncs() map[string]*TestFunc { return s.TestFuncs }
 
@@ -269,8 +271,9 @@ func run(t *testing.T, formatter Formatter, suites ...tCatcher) {
 		s.init()
 
 		iType := reflect.TypeOf(s)
-
-		s.setSuiteName(strings.Split(iType.String(), ".")[1])
+		splits := strings.Split(iType.String(), ".")
+		s.setPackageName(splits[0][1:])
+		s.setSuiteName(splits[1])
 		formatter.PrintSuiteInfo(s.suite())
 
 		// search for Before and After methods

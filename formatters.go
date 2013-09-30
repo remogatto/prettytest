@@ -43,7 +43,7 @@ Legend:
 type TDDFormatter struct{}
 
 func (formatter *TDDFormatter) PrintSuiteInfo(suite *Suite) {
-	fmt.Printf("\n%s:\n", suite.Name)
+	fmt.Printf("\nPackage: %s Suite: %s\n", suite.Package, suite.Name)
 }
 
 func (formatter *TDDFormatter) PrintStatus(testFunc *TestFunc) {
