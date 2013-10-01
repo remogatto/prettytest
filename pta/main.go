@@ -164,7 +164,14 @@ func matches(s, pattern string) bool {
 
 func execGoTest(paths []string) {
 	for _, path := range paths {
-		cmd := exec.Command("go", "test")
+		// Execute go test -i first
+		cmd := exec.Command("go", "test", "-i")
+		cmd.Dir = path
+		_, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Println(err)
+		}
+		cmd = exec.Command("go", "test")
 		cmd.Dir = path
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -187,9 +194,11 @@ func folders(path string) (paths []string) {
 
 		if info.IsDir() {
 			name := info.Name()
-			// skip folders that begin with a dot
+			// skip folders that begin with a dot and
+			// folders without test files
 			hidden := filepath.HasPrefix(name, ".") && name != "." && name != ".."
-			if hidden {
+			testFiles, _ := filepath.Glob(filepath.Join(name, "*_test.go"))
+			if hidden || len(testFiles) == 0 {
 				return filepath.SkipDir
 			} else {
 				paths = append(paths, newPath)
