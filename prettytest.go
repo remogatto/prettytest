@@ -352,10 +352,10 @@ func run(t T, formatter Formatter, suites ...tCatcher) {
 
 			}
 
-			if afterAll.IsValid() {
-				afterAll.Call([]reflect.Value{reflect.ValueOf(s)})
-			}
+		}
 
+		if afterAll.IsValid() {
+			afterAll.Call([]reflect.Value{reflect.ValueOf(s)})
 		}
 
 		formatter.PrintErrorLog(ErrorLog)
