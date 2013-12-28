@@ -75,12 +75,10 @@ usage examples.
 package prettytest
 
 import (
-	"flag"
 	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
-	"testing"
 )
 
 const (
@@ -94,7 +92,6 @@ const (
 const formatTag = "\t%s\t"
 
 var (
-	testToRun         = flag.String("pt.run", "", "[prettytest] regular expression that filters tests and examples to run")
 	ErrorLog          []*Error
 	labelFAIL         = red("F")
 	labelMUSTFAIL     = green("EF")
@@ -136,7 +133,7 @@ func newCallerInfo(skip int) *callerInfo {
 }
 
 type tCatcher interface {
-	setT(t *testing.T)
+	setT(t T)
 	suite() *Suite
 	setPackageName(name string)
 	setSuiteName(name string)
@@ -156,16 +153,20 @@ type TestFunc struct {
 	mustFail         bool
 }
 
-type Suite struct {
-	T         *testing.T
-	Package, Name      string
-	TestFuncs map[string]*TestFunc
+type T interface {
+	Fail()
 }
 
-func (s *Suite) setT(t *testing.T)               { s.T = t }
+type Suite struct {
+	T             T
+	Package, Name string
+	TestFuncs     map[string]*TestFunc
+}
+
+func (s *Suite) setT(t T)                        { s.T = t }
 func (s *Suite) init()                           { s.TestFuncs = make(map[string]*TestFunc) }
 func (s *Suite) suite() *Suite                   { return s }
-func (s *Suite) setPackageName(name string)        { s.Package = name }
+func (s *Suite) setPackageName(name string)      { s.Package = name }
 func (s *Suite) setSuiteName(name string)        { s.Name = name }
 func (s *Suite) testFuncs() map[string]*TestFunc { return s.TestFuncs }
 
@@ -245,17 +246,17 @@ func (s *Suite) setup(errorMessage string, customMessages []string) *Assertion {
 }
 
 // Run runs the test suites.
-func Run(t *testing.T, suites ...tCatcher) {
+func Run(t T, suites ...tCatcher) {
 	run(t, new(TDDFormatter), suites...)
 }
 
 // Run runs the test suites using the given formatter.
-func RunWithFormatter(t *testing.T, formatter Formatter, suites ...tCatcher) {
+func RunWithFormatter(t T, formatter Formatter, suites ...tCatcher) {
 	run(t, formatter, suites...)
 }
 
 // Run tests. Use default formatter.
-func run(t *testing.T, formatter Formatter, suites ...tCatcher) {
+func run(t T, formatter Formatter, suites ...tCatcher) {
 	var (
 		beforeAllFound, afterAllFound                                                    bool
 		beforeAll, afterAll, before, after                                               reflect.Value
@@ -263,7 +264,7 @@ func run(t *testing.T, formatter Formatter, suites ...tCatcher) {
 	)
 
 	ErrorLog = make([]*Error, 0)
-	flag.Parse()
+	//	flag.Parse()
 
 	for _, s := range suites {
 		beforeAll, afterAll, before, after = reflect.Value{}, reflect.Value{}, reflect.Value{}, reflect.Value{}
@@ -307,7 +308,7 @@ func run(t *testing.T, formatter Formatter, suites ...tCatcher) {
 
 		for i := 0; i < iType.NumMethod(); i++ {
 			method := iType.Method(i)
-			if ok, _ := regexp.MatchString(*testToRun, method.Name); ok {
+			if filterMethod(method.Name) {
 				if ok, _ := regexp.MatchString(formatter.AllowedMethodsPattern(), method.Name); ok {
 					if before.IsValid() {
 						before.Call([]reflect.Value{reflect.ValueOf(s)})
@@ -351,17 +352,18 @@ func run(t *testing.T, formatter Formatter, suites ...tCatcher) {
 
 			}
 
+			if afterAll.IsValid() {
+				afterAll.Call([]reflect.Value{reflect.ValueOf(s)})
+			}
+
 		}
 
-		if afterAll.IsValid() {
-			afterAll.Call([]reflect.Value{reflect.ValueOf(s)})
-		}
+		formatter.PrintErrorLog(ErrorLog)
+		formatter.PrintFinalReport(&FinalReport{Passed: totalPassed,
+			Failed:           totalFailed,
+			Pending:          totalPending,
+			ExpectedFailures: totalExpectedFailures,
+			NoAssertions:     totalNoAssertions,
+		})
 	}
-	formatter.PrintErrorLog(ErrorLog)
-	formatter.PrintFinalReport(&FinalReport{Passed: totalPassed,
-		Failed:           totalFailed,
-		Pending:          totalPending,
-		ExpectedFailures: totalExpectedFailures,
-		NoAssertions:     totalNoAssertions,
-	})
 }

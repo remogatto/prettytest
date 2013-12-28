@@ -2,7 +2,6 @@ package prettytest
 
 import (
 	"fmt"
-	"launchpad.net/gocheck"
 	"os"
 	"reflect"
 )
@@ -21,35 +20,6 @@ func (assertion *Assertion) fail() {
 	assertion.Passed = false
 	assertion.testFunc.Status = STATUS_FAIL
 	logError(&Error{assertion.suite, assertion.testFunc, assertion})
-}
-
-// Check wraps gocheck.Check method.
-// It verifies if the first value matches with the expected value.
-// What matching means is defined by the provided checker. In case
-// they do not match, an error will be logged, the test will be marked
-// as failed, and the test execution will continue.  Some checkers may
-// not need the expected argument (e.g. IsNil).  In either case, any
-// extra arguments provided to the function will be logged next to the
-// reported problem when the matching fails.  This is a handy way to
-// provide problem-specific hints. (taken from gocheck doc)
-func (s *Suite) Check(obtained interface{}, checker gocheck.Checker, args ...interface{}) *Assertion {
-	assertion := s.setup("", []string{})
-	checkerInfo := checker.Info()
-	params := make([]interface{}, len(args)+1)
-	params[0] = obtained
-	copy(params[1:], args)
-	result, _ := checker.Check(params, []string{})
-	if !result {
-		errorMsg := fmt.Sprintf("%s checker failed: ", checkerInfo.Name)
-		for i, param := range checkerInfo.Params {
-			errorMsg += fmt.Sprintf("%s %v ", param, params[i])
-		}
-		assertion.ErrorMessage = errorMsg
-		assertion.fail()
-	} else {
-		assertion.Passed = true
-	}
-	return assertion
 }
 
 // Not asserts the given assertion is false.
@@ -75,7 +45,9 @@ func (s *Suite) False(value bool, messages ...string) *Assertion {
 
 // Equal asserts that the expected value equals the actual value.
 func (s *Suite) Equal(exp, act interface{}, messages ...string) *Assertion {
-	assertion := s.setup(fmt.Sprintf("Expected %v to be equal to %v", act, exp), messages)
+	actType := reflect.TypeOf(act)
+	expType := reflect.TypeOf(exp)
+	assertion := s.setup(fmt.Sprintf("Expected %v[%s] to be equal to %v[%s]", act, actType, exp, expType), messages)
 	if exp != act {
 		assertion.fail()
 	}
@@ -106,8 +78,10 @@ func (s *Suite) Nil(value interface{}, messages ...string) *Assertion {
 	if value == nil {
 		return assertion
 	}
+	val := reflect.ValueOf(value)
+	val.Kind()
 	switch v := reflect.ValueOf(value); v.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice, reflect.UnsafePointer:
 		if !v.IsNil() {
 			assertion.fail()
 		}
