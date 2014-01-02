@@ -6,6 +6,28 @@ import (
 	"strings"
 )
 
+const formatTag = "\t%s\t"
+
+var (
+	labelFAIL         = red("F")
+	labelMUSTFAIL     = green("EF")
+	labelPASS         = green("OK")
+	labelPENDING      = yellow("PE")
+	labelNOASSERTIONS = yellow("NA")
+)
+
+func green(text string) string {
+	return "\033[32m" + text + "\033[0m"
+}
+
+func red(text string) string {
+	return "\033[31m" + text + "\033[0m"
+}
+
+func yellow(text string) string {
+	return "\033[33m" + text + "\033[0m"
+}
+
 type FinalReport struct {
 	Passed, Failed, ExpectedFailures, Pending, NoAssertions int
 }
