@@ -4,7 +4,7 @@ package prettytest
 
 import (
 	"fmt"
-	"launchpad.net/gocheck"
+	gocheck "gopkg.in/check.v1"
 )
 
 // Check wraps gocheck.Check method.
