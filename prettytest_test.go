@@ -26,8 +26,8 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 package prettytest
 
 import (
+	gocheck "gopkg.in/check.v1"
 	"io/ioutil"
-	"launchpad.net/gocheck"
 	"os"
 	"testing"
 )

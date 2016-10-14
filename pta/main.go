@@ -233,6 +233,6 @@ func main() {
 	application.Register("Watcher Loop", watcherLoop)
 	application.InstallSignalHandler(&sigterm{paths: watcherLoop.paths})
 	exitCh := make(chan bool)
-	application.Run(exitCh)
+	application.Run()
 	<-exitCh
 }
