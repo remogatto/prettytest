@@ -15,7 +15,3 @@ func filterMethod(name string) bool {
 	ok, _ := regexp.MatchString(*testToRun, name)
 	return ok
 }
-
-func init() {
-	flag.Parse()
-}
