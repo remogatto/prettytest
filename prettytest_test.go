@@ -26,10 +26,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 package prettytest
 
 import (
-	gocheck "gopkg.in/check.v1"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	gocheck "gopkg.in/check.v1"
 )
 
 var state, beforeState, afterState, beforeAllState, afterAllState int
@@ -69,6 +70,10 @@ func (suite *testSuite) TestFalse() {
 
 func (suite *testSuite) TestEqual() {
 	suite.Equal("foo", "foo")
+}
+
+func (suite *testSuite) TestContain() {
+	suite.Contain("foo", "foobar")
 }
 
 func (suite *testSuite) TestCheck() {

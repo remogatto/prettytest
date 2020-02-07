@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 )
 
 type Assertion struct {
@@ -49,6 +50,17 @@ func (s *Suite) Equal(exp, act interface{}, messages ...string) *Assertion {
 	expType := reflect.TypeOf(exp)
 	assertion := s.setup(fmt.Sprintf("Expected %v[%s] to be equal to %v[%s]", act, actType, exp, expType), messages)
 	if exp != act {
+		assertion.fail()
+	}
+	return assertion
+}
+
+// Contain asserts that the actual value contains the expected value.
+func (s *Suite) Contain(exp, act interface{}, messages ...string) *Assertion {
+	actType := reflect.TypeOf(act)
+	expType := reflect.TypeOf(exp)
+	assertion := s.setup(fmt.Sprintf("Expected %v[%s] to be contained in %v[%s]", act, actType, exp, expType), messages)
+	if strings.Contains(exp.(string), act.(string)) {
 		assertion.fail()
 	}
 	return assertion
