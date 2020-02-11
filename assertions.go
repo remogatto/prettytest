@@ -60,7 +60,7 @@ func (s *Suite) Contain(exp, act interface{}, messages ...string) *Assertion {
 	actType := reflect.TypeOf(act)
 	expType := reflect.TypeOf(exp)
 	assertion := s.setup(fmt.Sprintf("Expected %v[%s] to be contained in %v[%s]", act, actType, exp, expType), messages)
-	if strings.Contains(exp.(string), act.(string)) {
+	if !strings.Contains(act.(string), exp.(string)) {
 		assertion.fail()
 	}
 	return assertion

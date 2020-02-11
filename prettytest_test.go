@@ -74,6 +74,7 @@ func (suite *testSuite) TestEqual() {
 
 func (suite *testSuite) TestContain() {
 	suite.Contain("foo", "foobar")
+	suite.Contain("foo", "foo")
 }
 
 func (suite *testSuite) TestCheck() {
